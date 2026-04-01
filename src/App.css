@@ -1,0 +1,151 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.app-header p {
+  margin: 4px 0 0;
+  color: #475569;
+}
+
+.toolbar {
+  background: #ffffff;
+  border: 1px solid #d6dde6;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toolbar-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.field span {
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  border-radius: 6px;
+  border: 1px solid #c8d3df;
+  padding: 8px 10px;
+}
+
+button {
+  background: #0f766e;
+  color: #ffffff;
+  border-color: #0f766e;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: #ffffff;
+  color: #1f2937;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.toolbar-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.badge {
+  font-size: 0.85rem;
+  background: #ecf2f9;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.badge.filtered {
+  background: #cffafe;
+  color: #155e75;
+}
+
+.update-state {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.update-state.idle {
+  color: #0f766e;
+}
+
+.update-state.refreshing {
+  color: #d97706;
+}
+
+.last-updated {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.map-panel {
+  position: relative;
+  flex: 1;
+  min-height: 500px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #d6dde6;
+}
+
+.map-view {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+}
+
+.state-banner {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.state-banner.loading {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.state-banner.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.state-banner.empty {
+  background: #e2e8f0;
+  color: #1e293b;
+}
