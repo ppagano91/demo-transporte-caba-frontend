@@ -7,6 +7,11 @@
   box-sizing: border-box;
 }
 
+.top-nav {
+  display: flex;
+  gap: 8px;
+}
+
 .app-header h1 {
   margin: 0;
   font-size: 1.5rem;
@@ -148,4 +153,174 @@ button:disabled {
 .state-banner.empty {
   background: #e2e8f0;
   color: #1e293b;
+}
+
+.state-banner-static {
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.state-banner-static.loading {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.state-banner-static.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.state-banner-static.empty {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.subte-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.subte-toolbar {
+  background: #ffffff;
+  border: 1px solid #d6dde6;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: auto;
+}
+
+.subte-entities {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.subte-card {
+  background: #ffffff;
+  border: 1px solid #d6dde6;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.subte-card h2 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+
+.subte-meta {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+}
+
+.subte-no-stations {
+  margin: 0;
+  color: #475569;
+}
+
+.subte-table-wrap {
+  overflow-x: auto;
+}
+
+.subte-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.subte-table th,
+.subte-table td {
+  border: 1px solid #dbe3ec;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.subte-table th {
+  background: #f8fafc;
+}
+
+.ecobici-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ecobici-toolbar {
+  background: #ffffff;
+  border: 1px solid #d6dde6;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ecobici-filter-field {
+  min-width: 260px;
+}
+
+.ecobici-content {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  align-items: start;
+}
+
+.ecobici-map-panel {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #d6dde6;
+  min-height: 520px;
+}
+
+.ecobici-map-view {
+  min-height: 520px;
+}
+
+.ecobici-table-wrap {
+  border: 1px solid #d6dde6;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 520px;
+  background: #ffffff;
+}
+
+.ecobici-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.ecobici-table th,
+.ecobici-table td {
+  border: 1px solid #dbe3ec;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.ecobici-table th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 1;
+}
+
+@media (max-width: 1100px) {
+  .ecobici-content {
+    grid-template-columns: 1fr;
+  }
 }

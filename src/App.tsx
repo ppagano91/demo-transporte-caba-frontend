@@ -1,94 +1,77 @@
-import { useState } from "react";
-import MapView from "./components/MapView";
-import Toolbar from "./components/Toolbar";
-import { useVehiclePositions } from "./hooks/useVehiclePositions";
+import { useEffect, useMemo, useState } from "react";
+import ColectivosPage from "./pages/ColectivosPage";
+import EcobiciPage from "./pages/EcobiciPage";
+import SubteForecastPage from "./pages/SubteForecastPage";
 import "./App.css";
 
+type AppPage = "colectivos" | "subtes" | "ecobici";
+
+const detectPageFromPath = (path: string): AppPage => {
+  if (path.startsWith("/subtes")) {
+    return "subtes";
+  }
+  if (path.startsWith("/ecobici")) {
+    return "ecobici";
+  }
+  return "colectivos";
+};
+
 function App() {
-  const [draftRouteId, setDraftRouteId] = useState("");
-  const [draftAgencyId, setDraftAgencyId] = useState("");
-  const [appliedRouteId, setAppliedRouteId] = useState("");
-  const [appliedAgencyId, setAppliedAgencyId] = useState("");
-  const [refreshIntervalMs, setRefreshIntervalMs] = useState(30000);
-  const canSearch =
-    draftRouteId.trim().length > 0 || draftAgencyId.trim().length > 0;
-  const hasActiveFilter =
-    appliedRouteId.trim().length > 0 || appliedAgencyId.trim().length > 0;
+  const [activePage, setActivePage] = useState<AppPage>(() =>
+    detectPageFromPath(window.location.pathname),
+  );
 
-  const {
-    vehicles,
-    loading,
-    error,
-    empty,
-    lastUpdated,
-    isRefreshing,
-    refreshNow,
-  } = useVehiclePositions({
-    routeId: appliedRouteId,
-    agencyId: appliedAgencyId,
-    enabled: hasActiveFilter,
-    refreshIntervalMs,
-  });
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setActivePage(detectPageFromPath(window.location.pathname));
+    };
 
-  const handleApplyFilter = () => {
-    if (!canSearch) {
-      return;
+    window.addEventListener("popstate", handleLocationChange);
+    return () => window.removeEventListener("popstate", handleLocationChange);
+  }, []);
+
+  const openPage = (page: AppPage) => {
+    const nextPath =
+      page === "subtes" ? "/subtes" : page === "ecobici" ? "/ecobici" : "/";
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, "", nextPath);
     }
-    setAppliedRouteId(draftRouteId.trim());
-    setAppliedAgencyId(draftAgencyId.trim());
+    setActivePage(page);
   };
 
-  const handleClearFilter = () => {
-    setDraftRouteId("");
-    setDraftAgencyId("");
-    setAppliedRouteId("");
-    setAppliedAgencyId("");
-  };
+  const pageContent = useMemo(() => {
+    if (activePage === "subtes") {
+      return <SubteForecastPage />;
+    }
+    if (activePage === "ecobici") {
+      return <EcobiciPage />;
+    }
+    return <ColectivosPage />;
+  }, [activePage]);
 
   return (
     <main className="app-shell">
-      <header className="app-header">
-        <h1>Demo Visor Colectivos GCBA</h1>
-        <p>Visualizacion en tiempo real de posiciones de vehiculos.</p>
-      </header>
-
-      <Toolbar
-        routeIdInput={draftRouteId}
-        onRouteIdInputChange={setDraftRouteId}
-        agencyIdInput={draftAgencyId}
-        onAgencyIdInputChange={setDraftAgencyId}
-        onApplyFilter={handleApplyFilter}
-        onClearFilter={handleClearFilter}
-        onRefreshNow={refreshNow}
-        refreshIntervalMs={refreshIntervalMs}
-        onRefreshIntervalChange={setRefreshIntervalMs}
-        lastUpdated={lastUpdated}
-        totalVehicles={vehicles.length}
-        hasActiveFilter={hasActiveFilter}
-        appliedRouteId={appliedRouteId}
-        appliedAgencyId={appliedAgencyId}
-        canSearch={canSearch}
-        loading={loading}
-        isRefreshing={isRefreshing}
-      />
-
-      <section className="map-panel">
-        {error && <div className="state-banner error">Error: {error}</div>}
-        {!error && loading && (
-          <div className="state-banner loading">Cargando posiciones...</div>
-        )}
-        {!error && !loading && !hasActiveFilter && (
-          <div className="state-banner empty">
-            Ingresa route_id o agency_id para buscar vehiculos.
-          </div>
-        )}
-        {!error && !loading && hasActiveFilter && empty && (
-          <div className="state-banner empty">
-            Sin resultados para los filtros actuales.
-          </div>
-        )}
-        <MapView vehicles={vehicles} />
-      </section>
+      <nav className="top-nav">
+        <button
+          className={activePage === "colectivos" ? "" : "secondary"}
+          onClick={() => openPage("colectivos")}
+        >
+          Colectivos
+        </button>
+        <button
+          className={activePage === "subtes" ? "" : "secondary"}
+          onClick={() => openPage("subtes")}
+        >
+          Subtes GTFS
+        </button>
+        <button
+          className={activePage === "ecobici" ? "" : "secondary"}
+          onClick={() => openPage("ecobici")}
+        >
+          Ecobici
+        </button>
+      </nav>
+      {pageContent}
     </main>
   );
 }
