@@ -31,7 +31,11 @@ interface MapLibreApi {
     center: [number, number];
     zoom: number;
   }) => MapLibreMap;
-  Marker: new (options?: { color?: string }) => MapLibreMarker;
+  Marker: new (options?: {
+    color?: string;
+    element?: HTMLElement;
+    anchor?: "center" | "bottom";
+  }) => MapLibreMarker;
   Popup: new (options?: {
     closeButton?: boolean;
     closeOnClick?: boolean;
