@@ -15,6 +15,8 @@ type EcobiciPointFeature = {
   properties: {
     station_id: string;
     popup_html: string;
+    marker_color: string;
+    bikes_count: number;
   };
 };
 
@@ -110,7 +112,11 @@ interface EcobiciMapLibreMap {
     url: string,
     callback: (error: Error | null, image: HTMLImageElement | null) => void,
   ) => void;
-  addImage: (id: string, image: HTMLImageElement) => void;
+  addImage: (
+    id: string,
+    image: HTMLImageElement | ImageData,
+    options?: { sdf?: boolean },
+  ) => void;
 }
 
 interface EcobiciMapLibreApi {
@@ -154,9 +160,12 @@ const MAPLIBRE_CSS_URL =
 const ECOBICI_SOURCE_ID = "ecobici-stations";
 const ECOBICI_CLUSTERS_LAYER_ID = "ecobici-clusters";
 const ECOBICI_CLUSTER_COUNT_LAYER_ID = "ecobici-cluster-count";
-const ECOBICI_UNCLUSTERED_LAYER_ID = "ecobici-unclustered";
+const ECOBICI_UNCLUSTERED_CIRCLE_LAYER_ID = "ecobici-unclustered-circle";
+const ECOBICI_UNCLUSTERED_ICON_LAYER_ID = "ecobici-unclustered-icon";
+const ECOBICI_UNCLUSTERED_COUNT_LAYER_ID = "ecobici-unclustered-count";
 const ECOBICI_CLUSTER_RADIUS = 50;
 const ECOBICI_CLUSTER_MAX_ZOOM = 14;
+const ECOBICI_MARKER_ICON_ID = "ecobici-marker";
 
 let mapLibreLoadPromise: Promise<void> | null = null;
 const getMapLibre = (): EcobiciMapLibreApi | undefined => {
@@ -287,6 +296,8 @@ const toEcobiciGeoJson = (
       properties: {
         station_id: station.station_id,
         popup_html: toPopupContent(station),
+        marker_color: getMarkerColor(station),
+        bikes_count: getBikesCount(station),
       },
     });
   }
@@ -295,6 +306,82 @@ const toEcobiciGeoJson = (
     type: "FeatureCollection",
     features,
   };
+};
+
+const getBikesCount = (station: EcobiciStationMerged): number => {
+  const value = station.num_bikes_available;
+  if (
+    value === undefined ||
+    value === null ||
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+  return Math.max(0, Math.trunc(value));
+};
+
+const getMarkerColor = (station: EcobiciStationMerged): string => {
+  if (station.status && station.status !== "IN_SERVICE") {
+    return "#6b7280";
+  }
+
+  const bikes = getBikesCount(station);
+  if (bikes <= 0) {
+    return "#b02929";
+  }
+  if (bikes <= 5) {
+    return "#d4af09";
+  }
+  return "#16a361";
+};
+
+const loadSvgAsMapImage = async (
+  map: EcobiciMapLibreMap,
+  id: string,
+  svgUrl: string,
+  size = 64,
+): Promise<void> => {
+  if (map.hasImage(id)) {
+    return;
+  }
+
+  const response = await fetch(svgUrl);
+  if (!response.ok) {
+    throw new Error(`No se pudo cargar el SVG: ${svgUrl}`);
+  }
+
+  const svgText = await response.text();
+  const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+  const blobUrl = URL.createObjectURL(blob);
+
+  try {
+    const img = new Image();
+    img.width = size;
+    img.height = size;
+
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () =>
+        reject(new Error("No se pudo decodificar el SVG en Image()"));
+      img.src = blobUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 80;
+    canvas.height = 80;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("No se pudo obtener contexto 2D del canvas");
+    }
+
+    ctx.drawImage(img, 0, 0, size, size);
+    const imageData = ctx.getImageData(0, 0, size, size);
+    map.addImage(id, imageData, { sdf: true });
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
 };
 
 const addEcobiciSourceAndLayers = (map: EcobiciMapLibreMap): void => {
@@ -341,23 +428,67 @@ const addEcobiciSourceAndLayers = (map: EcobiciMapLibreMap): void => {
     });
   }
 
-  if (
-    !map.getLayer(ECOBICI_UNCLUSTERED_LAYER_ID) &&
-    map.hasImage("ecobici-marker")
-  ) {
-    console.log("addEcobiciUnclusteredLayer", bikeIcon);
+  if (!map.getLayer(ECOBICI_UNCLUSTERED_CIRCLE_LAYER_ID)) {
     map.addLayer({
-      id: ECOBICI_UNCLUSTERED_LAYER_ID,
+      id: ECOBICI_UNCLUSTERED_CIRCLE_LAYER_ID,
+      type: "circle",
+      source: ECOBICI_SOURCE_ID,
+      filter: ["!", ["has", "point_count"]],
+      paint: {
+        "circle-color": ["coalesce", ["get", "marker_color"]],
+        "circle-radius": 12,
+        // "circle-stroke-color": "#fff",
+        // "circle-stroke-width": 1,
+      },
+    });
+  }
+
+  if (!map.getLayer(ECOBICI_UNCLUSTERED_ICON_LAYER_ID)) {
+    map.addLayer({
+      id: ECOBICI_UNCLUSTERED_ICON_LAYER_ID,
       type: "symbol",
       source: ECOBICI_SOURCE_ID,
       filter: ["!", ["has", "point_count"]],
       layout: {
-        "icon-image": "ecobici-marker",
+        "icon-image": ECOBICI_MARKER_ICON_ID,
         "icon-size": 0.5,
         "icon-allow-overlap": true,
       },
+      paint: {
+        "icon-color": "#fff",
+      },
     });
   }
+
+  if (!map.getLayer(ECOBICI_UNCLUSTERED_COUNT_LAYER_ID)) {
+    map.addLayer({
+      id: ECOBICI_UNCLUSTERED_COUNT_LAYER_ID,
+      type: "symbol",
+      source: ECOBICI_SOURCE_ID,
+      filter: ["!", ["has", "point_count"]],
+      layout: {
+        "text-field": ["to-string", ["get", "bikes_count"]],
+        "text-size": 10,
+        "text-font": ["Noto Sans Bold"],
+        "text-offset": [1.5, 1.5],
+        "text-anchor": "bottom-right",
+      },
+      paint: {
+        "text-color": "#ffffff",
+        "text-halo-color": "#111827",
+        "text-halo-width": 2,
+      },
+    });
+  }
+};
+
+const ensureEcobiciIconAndLayers = async (
+  map: EcobiciMapLibreMap,
+): Promise<void> => {
+  if (!map.hasImage(ECOBICI_MARKER_ICON_ID)) {
+    await loadSvgAsMapImage(map, ECOBICI_MARKER_ICON_ID, bikeIcon, 32 * 1.25);
+  }
+  addEcobiciSourceAndLayers(map);
 };
 
 function EcobiciMapView({ stations }: EcobiciMapViewProps) {
@@ -366,63 +497,6 @@ function EcobiciMapView({ stations }: EcobiciMapViewProps) {
   const fittedRef = useRef(false);
   const mapLoadedRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
-
-  const loadSvgAsMapImage = async (
-    map: EcobiciMapLibreMap,
-    id: string,
-    svgUrl: string,
-    size = 64,
-  ): Promise<void> => {
-    if (map.hasImage(id)) return;
-
-    const response = await fetch(svgUrl);
-    if (!response.ok) {
-      throw new Error(`No se pudo cargar el SVG: ${svgUrl}`);
-    }
-
-    const svgText = await response.text();
-    const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
-    const blobUrl = URL.createObjectURL(blob);
-
-    try {
-      const img = new Image();
-      img.width = size;
-      img.height = size;
-
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () =>
-          reject(new Error("No se pudo decodificar el SVG en Image()"));
-        img.src = blobUrl;
-      });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        throw new Error("No se pudo obtener contexto 2D del canvas");
-      }
-
-      ctx.drawImage(img, 0, 0, size, size);
-
-      const imageData = ctx.getImageData(0, 0, size, size);
-      map.addImage(id, imageData as unknown as HTMLImageElement);
-    } finally {
-      URL.revokeObjectURL(blobUrl);
-    }
-  };
-
-  const ensureEcobiciIconAndLayers = async (
-    map: EcobiciMapLibreMap,
-  ): Promise<void> => {
-    if (!map.hasImage("ecobici-marker")) {
-      await loadSvgAsMapImage(map, "ecobici-marker", bikeIcon, 64);
-    }
-
-    addEcobiciSourceAndLayers(map);
-  };
 
   useEffect(() => {
     let active = true;
@@ -471,8 +545,7 @@ function EcobiciMapView({ stations }: EcobiciMapViewProps) {
 
   useEffect(() => {
     const map = mapRef.current;
-    const mapLibre = getMapLibre();
-    if (!mapReady || !map || !mapLibre) {
+    if (!mapReady || !map) {
       return;
     }
 
@@ -480,7 +553,7 @@ function EcobiciMapView({ stations }: EcobiciMapViewProps) {
       return;
     }
 
-    addEcobiciSourceAndLayers(map);
+    void ensureEcobiciIconAndLayers(map);
     const source = map.getSource(ECOBICI_SOURCE_ID) as
       | EcobiciMapLibreGeoJSONSource
       | undefined;
@@ -591,19 +664,51 @@ function EcobiciMapView({ stations }: EcobiciMapViewProps) {
     };
 
     map.on("click", ECOBICI_CLUSTERS_LAYER_ID, onClusterClick);
-    map.on("click", ECOBICI_UNCLUSTERED_LAYER_ID, onUnclusteredPointClick);
+    map.on(
+      "click",
+      ECOBICI_UNCLUSTERED_CIRCLE_LAYER_ID,
+      onUnclusteredPointClick,
+    );
+    map.on("click", ECOBICI_UNCLUSTERED_ICON_LAYER_ID, onUnclusteredPointClick);
+    map.on(
+      "click",
+      ECOBICI_UNCLUSTERED_COUNT_LAYER_ID,
+      onUnclusteredPointClick,
+    );
     map.on("mouseenter", ECOBICI_CLUSTERS_LAYER_ID, onMouseEnter);
     map.on("mouseleave", ECOBICI_CLUSTERS_LAYER_ID, onMouseLeave);
-    map.on("mouseenter", ECOBICI_UNCLUSTERED_LAYER_ID, onMouseEnter);
-    map.on("mouseleave", ECOBICI_UNCLUSTERED_LAYER_ID, onMouseLeave);
+    map.on("mouseenter", ECOBICI_UNCLUSTERED_CIRCLE_LAYER_ID, onMouseEnter);
+    map.on("mouseleave", ECOBICI_UNCLUSTERED_CIRCLE_LAYER_ID, onMouseLeave);
+    map.on("mouseenter", ECOBICI_UNCLUSTERED_ICON_LAYER_ID, onMouseEnter);
+    map.on("mouseleave", ECOBICI_UNCLUSTERED_ICON_LAYER_ID, onMouseLeave);
+    map.on("mouseenter", ECOBICI_UNCLUSTERED_COUNT_LAYER_ID, onMouseEnter);
+    map.on("mouseleave", ECOBICI_UNCLUSTERED_COUNT_LAYER_ID, onMouseLeave);
 
     return () => {
       map.off("click", ECOBICI_CLUSTERS_LAYER_ID, onClusterClick);
-      map.off("click", ECOBICI_UNCLUSTERED_LAYER_ID, onUnclusteredPointClick);
+      map.off(
+        "click",
+        ECOBICI_UNCLUSTERED_CIRCLE_LAYER_ID,
+        onUnclusteredPointClick,
+      );
+      map.off(
+        "click",
+        ECOBICI_UNCLUSTERED_ICON_LAYER_ID,
+        onUnclusteredPointClick,
+      );
+      map.off(
+        "click",
+        ECOBICI_UNCLUSTERED_COUNT_LAYER_ID,
+        onUnclusteredPointClick,
+      );
       map.off("mouseenter", ECOBICI_CLUSTERS_LAYER_ID, onMouseEnter);
       map.off("mouseleave", ECOBICI_CLUSTERS_LAYER_ID, onMouseLeave);
-      map.off("mouseenter", ECOBICI_UNCLUSTERED_LAYER_ID, onMouseEnter);
-      map.off("mouseleave", ECOBICI_UNCLUSTERED_LAYER_ID, onMouseLeave);
+      map.off("mouseenter", ECOBICI_UNCLUSTERED_CIRCLE_LAYER_ID, onMouseEnter);
+      map.off("mouseleave", ECOBICI_UNCLUSTERED_CIRCLE_LAYER_ID, onMouseLeave);
+      map.off("mouseenter", ECOBICI_UNCLUSTERED_ICON_LAYER_ID, onMouseEnter);
+      map.off("mouseleave", ECOBICI_UNCLUSTERED_ICON_LAYER_ID, onMouseLeave);
+      map.off("mouseenter", ECOBICI_UNCLUSTERED_COUNT_LAYER_ID, onMouseEnter);
+      map.off("mouseleave", ECOBICI_UNCLUSTERED_COUNT_LAYER_ID, onMouseLeave);
     };
   }, [mapReady]);
 
