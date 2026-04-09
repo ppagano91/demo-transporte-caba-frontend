@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import ColectivosPage from "./pages/ColectivosPage";
 import EcobiciPage from "./pages/EcobiciPage";
+import SemaforosPage from "./pages/SemaforosPage";
 import SubteForecastPage from "./pages/SubteForecastPage";
 import "./App.css";
 
-type AppPage = "colectivos" | "subtes" | "ecobici";
+type AppPage = "colectivos" | "subtes" | "ecobici" | "semaforos";
 
 const detectPageFromPath = (path: string): AppPage => {
   if (path.startsWith("/subtes")) {
@@ -12,6 +13,9 @@ const detectPageFromPath = (path: string): AppPage => {
   }
   if (path.startsWith("/ecobici")) {
     return "ecobici";
+  }
+  if (path.startsWith("/semaforos")) {
+    return "semaforos";
   }
   return "colectivos";
 };
@@ -32,7 +36,13 @@ function App() {
 
   const openPage = (page: AppPage) => {
     const nextPath =
-      page === "subtes" ? "/subtes" : page === "ecobici" ? "/ecobici" : "/";
+      page === "subtes"
+        ? "/subtes"
+        : page === "ecobici"
+          ? "/ecobici"
+          : page === "semaforos"
+            ? "/semaforos"
+            : "/";
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, "", nextPath);
     }
@@ -45,6 +55,9 @@ function App() {
     }
     if (activePage === "ecobici") {
       return <EcobiciPage />;
+    }
+    if (activePage === "semaforos") {
+      return <SemaforosPage />;
     }
     return <ColectivosPage />;
   }, [activePage]);
@@ -69,6 +82,12 @@ function App() {
           onClick={() => openPage("ecobici")}
         >
           Ecobici
+        </button>
+        <button
+          className={activePage === "semaforos" ? "" : "secondary"}
+          onClick={() => openPage("semaforos")}
+        >
+          Semaforos
         </button>
       </nav>
       {pageContent}
