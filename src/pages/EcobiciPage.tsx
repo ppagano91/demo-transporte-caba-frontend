@@ -24,21 +24,31 @@ function EcobiciPage() {
   const [inServiceOnly, setInServiceOnly] = useState(false);
   const [withBikesOnly, setWithBikesOnly] = useState(false);
 
-  const { stations, loading, error, empty, isRefreshing, lastUpdated, refreshNow } =
-    useEcobiciStations({
-      refreshIntervalMs,
-    });
+  const {
+    stations,
+    loading,
+    error,
+    empty,
+    isRefreshing,
+    lastUpdated,
+    refreshNow,
+  } = useEcobiciStations({
+    refreshIntervalMs,
+  });
 
   const visibleStations = useMemo(() => {
     const normalizedFilter = textFilter.trim().toLowerCase();
 
     return stations.filter((station) => {
       if (normalizedFilter) {
-        const byName = station.name?.toLowerCase().includes(normalizedFilter);
+        // const byName = station.name?.toLowerCase().includes(normalizedFilter);
+        const byGroups = station.groups?.some((group) =>
+          group.toLowerCase().includes(normalizedFilter),
+        );
         const byAddress = station.address
           ?.toLowerCase()
           .includes(normalizedFilter);
-        if (!byName && !byAddress) {
+        if (!byGroups && !byAddress) {
           return false;
         }
       }
@@ -76,7 +86,9 @@ function EcobiciPage() {
             <span>Intervalo de estado</span>
             <select
               value={refreshIntervalMs}
-              onChange={(event) => setRefreshIntervalMs(Number(event.target.value))}
+              onChange={(event) =>
+                setRefreshIntervalMs(Number(event.target.value))
+              }
             >
               <option value={10000}>10s</option>
               <option value={15000}>15s</option>
@@ -114,8 +126,12 @@ function EcobiciPage() {
 
         <div className="toolbar-status">
           <span className="badge">Estaciones totales: {stations.length}</span>
-          <span className="badge">Estaciones visibles: {visibleStations.length}</span>
-          <span className={`update-state ${isRefreshing ? "refreshing" : "idle"}`}>
+          <span className="badge">
+            Estaciones visibles: {visibleStations.length}
+          </span>
+          <span
+            className={`update-state ${isRefreshing ? "refreshing" : "idle"}`}
+          >
             {isRefreshing ? "Actualizando..." : "Estable"}
           </span>
           <span className="last-updated">
@@ -126,7 +142,9 @@ function EcobiciPage() {
 
       {error && <div className="state-banner-static error">Error: {error}</div>}
       {!error && loading && (
-        <div className="state-banner-static loading">Cargando estaciones...</div>
+        <div className="state-banner-static loading">
+          Cargando estaciones...
+        </div>
       )}
       {!error && !loading && empty && (
         <div className="state-banner-static empty">
@@ -156,7 +174,11 @@ function EcobiciPage() {
                 <tr key={stationKey(station, index)}>
                   <td>{station.name ?? "-"}</td>
                   <td>{station.station_id}</td>
-                  <td>{station.groups.length > 0 ? station.groups.join(", ") : "-"}</td>
+                  <td>
+                    {station.groups.length > 0
+                      ? station.groups.join(", ")
+                      : "-"}
+                  </td>
                   <td>{station.num_bikes_available ?? "-"}</td>
                   <td>{station.num_docks_available ?? "-"}</td>
                   <td>{station.status ?? "Sin estado"}</td>
