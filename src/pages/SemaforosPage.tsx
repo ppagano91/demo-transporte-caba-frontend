@@ -18,8 +18,15 @@ const semaforoKey = (semaforo: SemaforoMapItem, index: number): string => {
 };
 
 function SemaforosPage() {
-  const { semaforos, loading, error, empty, isRefreshing, lastUpdated, refreshNow } =
-    useSemaforos();
+  const {
+    semaforos,
+    loading,
+    error,
+    empty,
+    isRefreshing,
+    lastUpdated,
+    refreshNow,
+  } = useSemaforos();
 
   return (
     <section className="semaforos-page">
@@ -41,7 +48,9 @@ function SemaforosPage() {
 
         <div className="toolbar-status">
           <span className="badge">Semaforos visibles: {semaforos.length}</span>
-          <span className={`update-state ${isRefreshing ? "refreshing" : "idle"}`}>
+          <span
+            className={`update-state ${isRefreshing ? "refreshing" : "idle"}`}
+          >
             {isRefreshing ? "Actualizando..." : "Estable"}
           </span>
           <span className="last-updated">
@@ -65,7 +74,7 @@ function SemaforosPage() {
           <SemaforosMapView semaforos={semaforos} />
         </div>
 
-        <div className="semaforos-table-wrap">
+        {/* <div className="semaforos-table-wrap">
           <table className="semaforos-table">
             <thead>
               <tr>
@@ -86,7 +95,7 @@ function SemaforosPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </div> */}
       </section>
     </section>
   );
