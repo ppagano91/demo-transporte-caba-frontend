@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import type { VehiclePosition } from "../types/vehicle";
+import busIcon from "../assets/bus.svg";
 
 interface MapViewProps {
   vehicles: VehiclePosition[];
+  markerBackgroundColor: string;
 }
 
 interface MapLibreMarker {
   setLngLat: (lngLat: [number, number]) => MapLibreMarker;
   setPopup: (popup: MapLibrePopup) => MapLibreMarker;
   addTo: (map: MapLibreMap) => MapLibreMarker;
+  getElement: () => HTMLElement;
   remove: () => void;
 }
 
@@ -150,7 +153,41 @@ const toPopupContent = (vehicle: VehiclePosition): string => {
     .join("");
 };
 
-function MapView({ vehicles }: MapViewProps) {
+const createBusMarkerElement = (markerBackgroundColor: string): HTMLDivElement => {
+  const markerElement = document.createElement("div");
+  markerElement.className = "bus-marker";
+  markerElement.setAttribute("aria-label", "Colectivo");
+  markerElement.style.setProperty("--bus-marker-bg", markerBackgroundColor);
+
+  const iconSurfaceElement = document.createElement("div");
+  iconSurfaceElement.className = "bus-marker-surface";
+
+  const imageElement = document.createElement("img");
+  imageElement.className = "bus-marker-icon";
+  imageElement.src = busIcon;
+  imageElement.alt = "Colectivo";
+  imageElement.width = 30;
+  imageElement.height = 30;
+  imageElement.decoding = "async";
+
+  imageElement.onerror = () => {
+    imageElement.remove();
+    iconSurfaceElement.classList.add("bus-marker-fallback");
+    markerElement.setAttribute("aria-label", "Colectivo sin icono");
+
+    const fallbackElement = document.createElement("span");
+    fallbackElement.className = "bus-marker-fallback-label";
+    fallbackElement.textContent = "B";
+    iconSurfaceElement.appendChild(fallbackElement);
+  };
+
+  iconSurfaceElement.appendChild(imageElement);
+  markerElement.appendChild(iconSurfaceElement);
+
+  return markerElement;
+};
+
+function MapView({ vehicles, markerBackgroundColor }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Map<string, MapLibreMarker>>(new Map());
@@ -213,9 +250,15 @@ function MapView({ vehicles }: MapViewProps) {
       const existingMarker = markersRef.current.get(vehicle.id);
 
       if (existingMarker) {
+        existingMarker
+          .getElement()
+          .style.setProperty("--bus-marker-bg", markerBackgroundColor);
         existingMarker.setLngLat(lngLat).setPopup(popup);
       } else {
-        const marker = new mapLibre.Marker({ color: "#0f766e" })
+        const marker = new mapLibre.Marker({
+          element: createBusMarkerElement(markerBackgroundColor),
+          anchor: "center",
+        })
           .setLngLat(lngLat)
           .setPopup(popup)
           .addTo(map);
@@ -252,7 +295,7 @@ function MapView({ vehicles }: MapViewProps) {
       );
       fittedRef.current = true;
     }
-  }, [mapReady, vehicles]);
+  }, [mapReady, markerBackgroundColor, vehicles]);
 
   return <div ref={containerRef} className="map-view" />;
 }

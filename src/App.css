@@ -129,6 +129,52 @@ button:disabled {
   min-height: 500px;
 }
 
+.bus-marker {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.bus-marker-surface {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--bus-marker-bg, #0f766e);
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.3);
+  box-sizing: border-box;
+}
+
+.bus-marker-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  user-select: none;
+}
+
+.bus-marker-fallback {
+  color: #ffffff;
+}
+
+.bus-marker-fallback-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  color: currentColor;
+}
+
+.color-input {
+  width: 56px;
+  min-width: 56px;
+  height: 40px;
+  padding: 4px;
+}
+
 .state-banner {
   position: absolute;
   top: 10px;

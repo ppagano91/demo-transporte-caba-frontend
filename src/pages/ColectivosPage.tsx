@@ -8,19 +8,27 @@ function ColectivosPage() {
   const [draftAgencyId, setDraftAgencyId] = useState("");
   const [appliedRouteId, setAppliedRouteId] = useState("");
   const [appliedAgencyId, setAppliedAgencyId] = useState("");
+  const [markerColor, setMarkerColor] = useState("rgb(30, 20, 240)");
   const [refreshIntervalMs, setRefreshIntervalMs] = useState(30000);
   const canSearch =
     draftRouteId.trim().length > 0 || draftAgencyId.trim().length > 0;
   const hasActiveFilter =
     appliedRouteId.trim().length > 0 || appliedAgencyId.trim().length > 0;
 
-  const { vehicles, loading, error, empty, lastUpdated, isRefreshing, refreshNow } =
-    useVehiclePositions({
-      routeId: appliedRouteId,
-      agencyId: appliedAgencyId,
-      enabled: hasActiveFilter,
-      refreshIntervalMs,
-    });
+  const {
+    vehicles,
+    loading,
+    error,
+    empty,
+    lastUpdated,
+    isRefreshing,
+    refreshNow,
+  } = useVehiclePositions({
+    routeId: appliedRouteId,
+    agencyId: appliedAgencyId,
+    enabled: hasActiveFilter,
+    refreshIntervalMs,
+  });
 
   const handleApplyFilter = () => {
     if (!canSearch) {
@@ -49,6 +57,8 @@ function ColectivosPage() {
         onRouteIdInputChange={setDraftRouteId}
         agencyIdInput={draftAgencyId}
         onAgencyIdInputChange={setDraftAgencyId}
+        markerColor={markerColor}
+        onMarkerColorChange={setMarkerColor}
         onApplyFilter={handleApplyFilter}
         onClearFilter={handleClearFilter}
         onRefreshNow={refreshNow}
@@ -79,7 +89,7 @@ function ColectivosPage() {
             Sin resultados para los filtros actuales.
           </div>
         )}
-        <MapView vehicles={vehicles} />
+        <MapView vehicles={vehicles} markerBackgroundColor={markerColor} />
       </section>
     </>
   );

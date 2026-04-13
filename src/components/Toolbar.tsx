@@ -3,6 +3,8 @@ interface ToolbarProps {
   onRouteIdInputChange: (value: string) => void;
   agencyIdInput: string;
   onAgencyIdInputChange: (value: string) => void;
+  markerColor: string;
+  onMarkerColorChange: (value: string) => void;
   onApplyFilter: () => void;
   onClearFilter: () => void;
   onRefreshNow: () => void;
@@ -34,6 +36,8 @@ function Toolbar({
   onRouteIdInputChange,
   agencyIdInput,
   onAgencyIdInputChange,
+  markerColor,
+  onMarkerColorChange,
   onApplyFilter,
   onClearFilter,
   onRefreshNow,
@@ -65,6 +69,16 @@ function Toolbar({
             value={agencyIdInput}
             onChange={(event) => onAgencyIdInputChange(event.target.value)}
             placeholder="Ej: 70"
+          />
+        </label>
+        <label className="field">
+          <span>Color icono</span>
+          <input
+            className="color-input"
+            type="color"
+            value={markerColor}
+            onChange={(event) => onMarkerColorChange(event.target.value)}
+            aria-label="Color de fondo del icono de colectivos"
           />
         </label>
 
