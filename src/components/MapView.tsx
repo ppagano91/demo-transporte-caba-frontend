@@ -142,6 +142,7 @@ const toPopupContent = (vehicle: VehiclePosition): string => {
     ["timestamp", timestampText],
     ["latitude", vehicle.latitude.toFixed(6)],
     ["longitude", vehicle.longitude.toFixed(6)],
+    ["bearing", vehicle.bearing?.toFixed(1)],
     ["speed", vehicle.speed?.toString()],
   ];
 
@@ -153,11 +154,75 @@ const toPopupContent = (vehicle: VehiclePosition): string => {
     .join("");
 };
 
+const normalizeBearing = (value?: number): number | undefined => {
+  if (value === undefined || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  return ((value % 360) + 360) % 360;
+};
+
+const toRadians = (value: number): number => (value * Math.PI) / 180;
+
+const toDegrees = (value: number): number => (value * 180) / Math.PI;
+
+const inferBearing = (
+  previous: { latitude: number; longitude: number } | undefined,
+  current: { latitude: number; longitude: number },
+): number | undefined => {
+  if (!previous) {
+    return undefined;
+  }
+
+  const latDiff = Math.abs(current.latitude - previous.latitude);
+  const lonDiff = Math.abs(current.longitude - previous.longitude);
+  if (latDiff < 0.00001 && lonDiff < 0.00001) {
+    return undefined;
+  }
+
+  const previousLatitude = toRadians(previous.latitude);
+  const currentLatitude = toRadians(current.latitude);
+  const deltaLongitude = toRadians(current.longitude - previous.longitude);
+
+  const y = Math.sin(deltaLongitude) * Math.cos(currentLatitude);
+  const x =
+    Math.cos(previousLatitude) * Math.sin(currentLatitude) -
+    Math.sin(previousLatitude) *
+      Math.cos(currentLatitude) *
+      Math.cos(deltaLongitude);
+
+  return normalizeBearing(toDegrees(Math.atan2(y, x)));
+};
+
+const applyMarkerBearing = (
+  markerElement: HTMLElement,
+  bearing: number | undefined,
+): void => {
+  if (bearing === undefined) {
+    markerElement.classList.remove("has-direction");
+    markerElement.style.removeProperty("--bus-marker-bearing");
+    return;
+  }
+
+  markerElement.classList.add("has-direction");
+  markerElement.style.setProperty("--bus-marker-bearing", `${bearing}deg`);
+};
+
 const createBusMarkerElement = (markerBackgroundColor: string): HTMLDivElement => {
   const markerElement = document.createElement("div");
   markerElement.className = "bus-marker";
   markerElement.setAttribute("aria-label", "Colectivo");
   markerElement.style.setProperty("--bus-marker-bg", markerBackgroundColor);
+
+  const rotatorElement = document.createElement("div");
+  rotatorElement.className = "bus-marker-rotator";
+
+  const directionLayerElement = document.createElement("div");
+  directionLayerElement.className = "bus-marker-direction-layer";
+
+  const directionElement = document.createElement("span");
+  directionElement.className = "bus-marker-direction";
+  directionElement.setAttribute("aria-hidden", "true");
 
   const iconSurfaceElement = document.createElement("div");
   iconSurfaceElement.className = "bus-marker-surface";
@@ -182,7 +247,10 @@ const createBusMarkerElement = (markerBackgroundColor: string): HTMLDivElement =
   };
 
   iconSurfaceElement.appendChild(imageElement);
-  markerElement.appendChild(iconSurfaceElement);
+  directionLayerElement.appendChild(directionElement);
+  rotatorElement.appendChild(directionLayerElement);
+  rotatorElement.appendChild(iconSurfaceElement);
+  markerElement.appendChild(rotatorElement);
 
   return markerElement;
 };
@@ -191,6 +259,10 @@ function MapView({ vehicles, markerBackgroundColor }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Map<string, MapLibreMarker>>(new Map());
+  const previousPositionsRef = useRef<
+    Map<string, { latitude: number; longitude: number }>
+  >(new Map());
+  const lastBearingRef = useRef<Map<string, number>>(new Map());
   const fittedRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
 
@@ -222,6 +294,8 @@ function MapView({ vehicles, markerBackgroundColor }: MapViewProps) {
       active = false;
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current.clear();
+      previousPositionsRef.current.clear();
+      lastBearingRef.current.clear();
       mapRef.current?.remove();
       mapRef.current = null;
       setMapReady(false);
@@ -248,15 +322,25 @@ function MapView({ vehicles, markerBackgroundColor }: MapViewProps) {
         toPopupContent(vehicle),
       );
       const existingMarker = markersRef.current.get(vehicle.id);
+      const previousPosition = previousPositionsRef.current.get(vehicle.id);
+      const nextBearing =
+        normalizeBearing(vehicle.bearing) ??
+        inferBearing(previousPosition, {
+          latitude: vehicle.latitude,
+          longitude: vehicle.longitude,
+        }) ??
+        lastBearingRef.current.get(vehicle.id);
 
       if (existingMarker) {
-        existingMarker
-          .getElement()
-          .style.setProperty("--bus-marker-bg", markerBackgroundColor);
+        const markerElement = existingMarker.getElement();
+        markerElement.style.setProperty("--bus-marker-bg", markerBackgroundColor);
+        applyMarkerBearing(markerElement, nextBearing);
         existingMarker.setLngLat(lngLat).setPopup(popup);
       } else {
+        const markerElement = createBusMarkerElement(markerBackgroundColor);
+        applyMarkerBearing(markerElement, nextBearing);
         const marker = new mapLibre.Marker({
-          element: createBusMarkerElement(markerBackgroundColor),
+          element: markerElement,
           anchor: "center",
         })
           .setLngLat(lngLat)
@@ -264,12 +348,22 @@ function MapView({ vehicles, markerBackgroundColor }: MapViewProps) {
           .addTo(map);
         markersRef.current.set(vehicle.id, marker);
       }
+
+      if (nextBearing !== undefined) {
+        lastBearingRef.current.set(vehicle.id, nextBearing);
+      }
+      previousPositionsRef.current.set(vehicle.id, {
+        latitude: vehicle.latitude,
+        longitude: vehicle.longitude,
+      });
     }
 
     markersRef.current.forEach((marker, id) => {
       if (!nextIds.has(id)) {
         marker.remove();
         markersRef.current.delete(id);
+        previousPositionsRef.current.delete(id);
+        lastBearingRef.current.delete(id);
       }
     });
 

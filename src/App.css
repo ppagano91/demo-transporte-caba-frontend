@@ -129,6 +129,32 @@ button:disabled {
   min-height: 500px;
 }
 
+.maplibregl-popup-content {
+  padding: 12px 36px 12px 12px;
+  line-height: 1.4;
+}
+
+.maplibregl-popup .maplibregl-popup-close-button {
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  font-size: 20px;
+  line-height: 24px;
+  display: grid;
+  place-items: center;
+  z-index: 1;
+}
+
+.maplibregl-popup .maplibregl-popup-close-button:hover {
+  background: #e2e8f0;
+}
+
 .bus-marker {
   width: 34px;
   height: 34px;
@@ -138,9 +164,45 @@ button:disabled {
   pointer-events: auto;
 }
 
-.bus-marker-surface {
+.bus-marker-rotator {
+  position: relative;
   width: 34px;
   height: 34px;
+}
+
+.bus-marker-direction-layer {
+  position: absolute;
+  inset: 0;
+  transform: rotate(var(--bus-marker-bearing, 0deg));
+  transform-origin: center;
+  transition: transform 200ms ease;
+}
+
+.bus-marker-direction {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 14px solid var(--bus-marker-bg, #0f766e);
+  transform: translateX(-50%);
+  filter:
+    drop-shadow(0 0 0 #ffffff)
+    drop-shadow(0 0 2px #ffffff)
+    drop-shadow(0 1px 3px rgba(15, 23, 42, 0.45));
+  opacity: 0;
+  z-index: 2;
+}
+
+.bus-marker.has-direction .bus-marker-direction {
+  opacity: 0.98;
+}
+
+.bus-marker-surface {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
   border-radius: 999px;

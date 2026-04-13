@@ -122,6 +122,7 @@ export const parseVehiclePositionsResponse = (
         timestamp,
         latitude,
         longitude,
+        bearing: toNumberSafe(readProp(positionNode, "_bearing", "bearing")),
         speed: toNumberSafe(readProp(positionNode, "_speed", "speed")),
         currentStatus: toStringSafe(
           readProp(vehicleNode, "_current_status", "current_status"),
@@ -209,6 +210,7 @@ export const parseVehiclePositionsSimpleResponse = (
         timestamp,
         latitude,
         longitude,
+        bearing: toNumberSafe(readProp(item, "bearing", "heading")),
         speed: toNumberSafe(readProp(item, "speed")),
       };
     })

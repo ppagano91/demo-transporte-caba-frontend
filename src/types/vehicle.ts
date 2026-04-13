@@ -15,6 +15,7 @@ export interface VehiclePosition {
   timestamp?: number;
   latitude: number;
   longitude: number;
+  bearing?: number;
   speed?: number;
   currentStatus?: string;
   currentStopSequence?: number;
