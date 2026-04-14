@@ -69,7 +69,6 @@ function EcobiciPage() {
         "--ecobici-reference-height": `${mapCardHeight}px`,
       } as CSSProperties)
     : undefined;
-  console.log(mapCardHeight);
 
   useLayoutEffect(() => {
     const element = mapCardRef.current;

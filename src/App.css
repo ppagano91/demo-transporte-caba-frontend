@@ -946,6 +946,7 @@ button:disabled {
 }
 
 .ecobici-stations-card {
+  box-sizing: border-box;
   height: var(--ecobici-reference-height, auto);
   max-height: var(--ecobici-reference-height, none);
   overflow: hidden;
