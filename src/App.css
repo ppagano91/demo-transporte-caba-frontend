@@ -896,6 +896,21 @@ button:disabled {
   gap: 16px;
 }
 
+.ecobici-summary-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ecobici-page .page-split-layout {
+  align-items: start;
+}
+
+.ecobici-page .page-split-sidebar,
+.ecobici-page .page-split-main {
+  min-height: 0;
+}
+
 .ecobici-section-header h2 {
   margin: 4px 0 0;
 }
@@ -923,6 +938,17 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+}
+
+.ecobici-map-card {
+  overflow: hidden;
+}
+
+.ecobici-stations-card {
+  height: var(--ecobici-reference-height, auto);
+  max-height: var(--ecobici-reference-height, none);
+  overflow: hidden;
 }
 
 .ecobici-section-header {
@@ -948,6 +974,7 @@ button:disabled {
 
 .ecobici-map-panel {
   position: relative;
+  flex: 1 1 auto;
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid #d6dde6;
@@ -956,6 +983,8 @@ button:disabled {
 }
 
 .ecobici-map-view {
+  width: 100%;
+  height: 100%;
   min-height: clamp(560px, 74vh, 820px);
 }
 
@@ -1014,16 +1043,72 @@ button:disabled {
 .ecobici-filter-toggles {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.ecobici-filter-toggle {
+  min-width: 168px;
+  padding: 0.5rem 0.6875rem;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.ecobici-filter-toggle.is-active {
+  border-color: #14b8a6;
+  background: #ecfeff;
+  box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.15);
+}
+
+.ecobici-filter-toggle .toggle-control-copy {
+  gap: 2px;
+}
+
+.ecobici-filter-toggle .toggle-control-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.ecobici-filter-toggle .toggle-control-state {
+  font-size: 0.84rem;
+  color: #0f172a;
+}
+
+.ecobici-filter-toggle .toggle-control-switch {
+  width: 1.8rem;
+  height: 0.95rem;
+  padding: 0.2rem;
+}
+
+.ecobici-filter-toggle .toggle-control-thumb {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.ecobici-filter-toggle
+  .toggle-control-input:checked
+  + .toggle-control-switch
+  .toggle-control-thumb {
+  transform: translateX(0.85rem);
+}
+
+.ecobici-filter-toggle.is-active .toggle-control-label,
+.ecobici-filter-toggle.is-active .toggle-control-state {
+  color: #0f766e;
 }
 
 .ecobici-table-wrap {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
-  overflow: auto;
-  max-height: min(68vh, 720px);
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
   background: #ffffff;
+  overscroll-behavior: contain;
 }
 
 .ecobici-table {
@@ -1129,6 +1214,12 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .ecobici-map-card,
+  .ecobici-stations-card {
+    height: auto;
+    max-height: none;
+  }
+
   .subte-layout {
     grid-template-columns: 1fr;
   }
@@ -1187,6 +1278,15 @@ button:disabled {
   .ecobici-table th,
   .ecobici-table td {
     padding: 10px 12px;
+  }
+
+  .ecobici-filter-toggles {
+    width: 100%;
+  }
+
+  .ecobici-filter-toggle {
+    flex: 1 1 100%;
+    min-width: 0;
   }
 
   .map-feature-header,

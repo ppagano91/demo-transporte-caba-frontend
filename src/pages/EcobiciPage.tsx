@@ -1,4 +1,10 @@
-import { useMemo, useState } from "react";
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import EcobiciMapView from "../components/EcobiciMapView";
 import SectionOverview from "../components/SectionOverview";
 import { useEcobiciStations } from "../hooks/useEcobiciStations";
@@ -13,6 +19,8 @@ function EcobiciPage() {
   const [textFilter, setTextFilter] = useState("");
   const [inServiceOnly, setInServiceOnly] = useState(false);
   const [withBikesOnly, setWithBikesOnly] = useState(false);
+  const [mapCardHeight, setMapCardHeight] = useState<number | null>(null);
+  const mapCardRef = useRef<HTMLElement | null>(null);
 
   const {
     stations,
@@ -56,64 +64,107 @@ function EcobiciPage() {
   }, [inServiceOnly, stations, textFilter, withBikesOnly]);
   const hasActiveFilters =
     textFilter.trim().length > 0 || inServiceOnly || withBikesOnly;
+  const splitLayoutStyle: CSSProperties | undefined = mapCardHeight
+    ? ({
+        "--ecobici-reference-height": `${mapCardHeight}px`,
+      } as CSSProperties)
+    : undefined;
+  console.log(mapCardHeight);
+
+  useLayoutEffect(() => {
+    const element = mapCardRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    let frameId = 0;
+
+    const updateHeight = () => {
+      cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => {
+        const nextHeight = Math.round(element.getBoundingClientRect().height);
+        setMapCardHeight((currentHeight) =>
+          currentHeight === nextHeight ? currentHeight : nextHeight,
+        );
+      });
+    };
+
+    updateHeight();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateHeight();
+    });
+
+    resizeObserver.observe(element);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, []);
 
   return (
     <section className="ecobici-page">
-      <section className="page-split-layout">
+      <div className="ecobici-summary-stack">
+        <SectionOverview
+          kicker="Operacion"
+          title="Estado general de estaciones"
+          // description="Resumen, refresco y exploracion detallada reunidos en un panel lateral para dejar el mapa siempre visible."
+          actions={
+            <>
+              <button
+                className="secondary"
+                onClick={refreshNow}
+                disabled={loading || isRefreshing}
+              >
+                Actualizar ahora
+              </button>
+
+              <select
+                value={refreshIntervalMs}
+                onChange={(event) =>
+                  setRefreshIntervalMs(Number(event.target.value))
+                }
+              >
+                <option value={10000}>10s</option>
+                <option value={15000}>15s</option>
+                <option value={30000}>30s</option>
+              </select>
+            </>
+          }
+          metrics={[
+            { label: "Estaciones totales", value: stations.length },
+            { label: "Estaciones visibles", value: visibleStations.length },
+            {
+              label: "Filtros",
+              value: hasActiveFilters ? "Aplicados" : "Sin filtros",
+              tone: hasActiveFilters ? "accent" : "default",
+            },
+          ]}
+          isRefreshing={isRefreshing}
+          lastUpdated={lastUpdated}
+        />
+
+        {error && (
+          <div className="state-banner-static error">Error: {error}</div>
+        )}
+        {!error && loading && (
+          <div className="state-banner-static loading">
+            Cargando estaciones...
+          </div>
+        )}
+        {!error && !loading && empty && (
+          <div className="state-banner-static empty">
+            Sin estaciones con coordenadas validas para mostrar.
+          </div>
+        )}
+      </div>
+
+      <section className="page-split-layout" style={splitLayoutStyle}>
         <div className="page-split-sidebar">
-          <SectionOverview
-            kicker="Operacion"
-            title="Estado general de estaciones"
-            // description="Resumen, refresco y exploracion detallada reunidos en un panel lateral para dejar el mapa siempre visible."
-            actions={
-              <>
-                <button
-                  className="secondary"
-                  onClick={refreshNow}
-                  disabled={loading || isRefreshing}
-                >
-                  Actualizar ahora
-                </button>
-
-                <select
-                  value={refreshIntervalMs}
-                  onChange={(event) =>
-                    setRefreshIntervalMs(Number(event.target.value))
-                  }
-                >
-                  <option value={10000}>10s</option>
-                  <option value={15000}>15s</option>
-                  <option value={30000}>30s</option>
-                </select>
-              </>
-            }
-            metrics={[
-              { label: "Estaciones totales", value: stations.length },
-              { label: "Estaciones visibles", value: visibleStations.length },
-              {
-                label: "Filtros",
-                value: hasActiveFilters ? "Aplicados" : "Sin filtros",
-                tone: hasActiveFilters ? "accent" : "default",
-              },
-            ]}
-            isRefreshing={isRefreshing}
-            lastUpdated={lastUpdated}
-          />
-
-          {error && (
-            <div className="state-banner-static error">Error: {error}</div>
-          )}
-          {!error && loading && (
-            <div className="state-banner-static loading">
-              Cargando estaciones...
-            </div>
-          )}
-          {!error && !loading && empty && (
-            <div className="state-banner-static empty">
-              Sin estaciones con coordenadas validas para mostrar.
-            </div>
-          )}
-
           <article className="ecobici-card ecobici-stations-card">
             <div className="ecobici-section-header">
               <div className="ecobici-section-heading">
@@ -132,23 +183,53 @@ function EcobiciPage() {
                 />
               </label>
 
-              <div className="ecobici-filter-toggles">
-                <label className="field inline">
-                  <span>Solo IN_SERVICE</span>
+              <div
+                className="ecobici-filter-toggles"
+                role="group"
+                aria-label="Filtros rapidos de estaciones"
+              >
+                <label
+                  className={`toggle-control ecobici-filter-toggle ${inServiceOnly ? "is-active" : ""}`}
+                >
+                  <span className="toggle-control-copy">
+                    <span className="toggle-control-label">
+                      Solo IN_SERVICE
+                    </span>
+                    <span className="toggle-control-state">
+                      {inServiceOnly ? "Activo" : "Inactivo"}
+                    </span>
+                  </span>
                   <input
                     type="checkbox"
+                    className="toggle-control-input"
                     checked={inServiceOnly}
                     onChange={(event) => setInServiceOnly(event.target.checked)}
                   />
+                  <span className="toggle-control-switch" aria-hidden="true">
+                    <span className="toggle-control-thumb" />
+                  </span>
                 </label>
 
-                <label className="field inline">
-                  <span>Solo con bicicletas</span>
+                <label
+                  className={`toggle-control ecobici-filter-toggle ${withBikesOnly ? "is-active" : ""}`}
+                >
+                  <span className="toggle-control-copy">
+                    <span className="toggle-control-label">
+                      Solo con bicicletas
+                    </span>
+                    <span className="toggle-control-state">
+                      {withBikesOnly ? "Activo" : "Inactivo"}
+                    </span>
+                  </span>
                   <input
                     type="checkbox"
+                    className="toggle-control-input"
                     checked={withBikesOnly}
                     onChange={(event) => setWithBikesOnly(event.target.checked)}
                   />
+                  <span className="toggle-control-switch" aria-hidden="true">
+                    <span className="toggle-control-thumb" />
+                  </span>
                 </label>
               </div>
             </div>
@@ -193,15 +274,14 @@ function EcobiciPage() {
         </div>
 
         <div className="page-split-main">
-          <article className="ecobici-card ecobici-map-card ecobici-map-card-primary map-feature-card">
+          <article
+            ref={mapCardRef}
+            className="ecobici-card ecobici-map-card ecobici-map-card-primary map-feature-card"
+          >
             <div className="ecobici-section-header">
               <div className="ecobici-section-heading">
                 <p className="section-kicker">Vista principal</p>
                 <h2>Mapa de estaciones</h2>
-                <p className="ecobici-section-copy">
-                  Vista principal de estaciones con el mapa siempre disponible
-                  como elemento dominante de la pantalla.
-                </p>
               </div>
               <div className="ecobici-map-badges">
                 <span className="badge">{stations.length} totales</span>
