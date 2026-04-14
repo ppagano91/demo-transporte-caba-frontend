@@ -131,7 +131,7 @@ function SubteForecastPage() {
       <SectionOverview
         kicker="Operacion"
         title="Pronostico GTFS"
-        description="La actualizacion, el timestamp y los controles de refresco comparten la misma estructura visual del resto de la app."
+        // description="La actualizacion, el timestamp y los controles de refresco comparten la misma estructura visual del resto de la app."
         actions={
           <>
             <button
@@ -142,29 +142,37 @@ function SubteForecastPage() {
               Actualizar ahora
             </button>
 
-            <label className="field inline">
-              <span>Auto refresh</span>
+            <label
+              className="toggle-control"
+              aria-label="Control de auto refresh"
+            >
+              <span className="toggle-control-copy">
+                <span className="toggle-control-label">Auto refresh</span>
+              </span>
               <input
                 type="checkbox"
+                className="toggle-control-input"
                 checked={autoRefreshEnabled}
-                onChange={(event) => setAutoRefreshEnabled(event.target.checked)}
+                onChange={(event) =>
+                  setAutoRefreshEnabled(event.target.checked)
+                }
               />
+              <span className="toggle-control-switch" aria-hidden="true">
+                <span className="toggle-control-thumb" />
+              </span>
             </label>
 
-            <label className="field">
-              <span>Intervalo</span>
-              <select
-                value={refreshIntervalMs}
-                disabled={!autoRefreshEnabled}
-                onChange={(event) =>
-                  setRefreshIntervalMs(Number(event.target.value))
-                }
-              >
-                <option value={10000}>10s</option>
-                <option value={15000}>15s</option>
-                <option value={30000}>30s</option>
-              </select>
-            </label>
+            <select
+              value={refreshIntervalMs}
+              disabled={!autoRefreshEnabled}
+              onChange={(event) =>
+                setRefreshIntervalMs(Number(event.target.value))
+              }
+            >
+              <option value={10000}>10s</option>
+              <option value={15000}>15s</option>
+              <option value={30000}>30s</option>
+            </select>
           </>
         }
         metrics={[

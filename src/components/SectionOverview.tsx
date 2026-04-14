@@ -37,6 +37,31 @@ function SectionOverview({
   isRefreshing,
   lastUpdated,
 }: SectionOverviewProps) {
+  const metricsGrid = (
+    <div className="section-overview-metrics">
+      {metrics.map((metric, index) => (
+        <div
+          key={`${metric.label}-${index}`}
+          className={`section-overview-metric ${metric.tone === "accent" ? "accent" : ""}`}
+        >
+          <span className="section-overview-label">{metric.label}</span>
+          <strong className="section-overview-value">{metric.value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+
+  const meta = (
+    <div className="section-overview-meta">
+      <span className={`update-state ${isRefreshing ? "refreshing" : "idle"}`}>
+        {isRefreshing ? "Actualizando..." : "Estable"}
+      </span>
+      <span className="last-updated">
+        Ultima actualizacion: {formatLastUpdate(lastUpdated)}
+      </span>
+    </div>
+  );
+
   return (
     <section className="section-overview">
       <div className="section-overview-top">
@@ -54,26 +79,8 @@ function SectionOverview({
       </div>
 
       <div className="section-overview-bottom">
-        <div className="section-overview-metrics">
-          {metrics.map((metric, index) => (
-            <div
-              key={`${metric.label}-${index}`}
-              className={`section-overview-metric ${metric.tone === "accent" ? "accent" : ""}`}
-            >
-              <span className="section-overview-label">{metric.label}</span>
-              <strong className="section-overview-value">{metric.value}</strong>
-            </div>
-          ))}
-        </div>
-
-        <div className="section-overview-meta">
-          <span className={`update-state ${isRefreshing ? "refreshing" : "idle"}`}>
-            {isRefreshing ? "Actualizando..." : "Estable"}
-          </span>
-          <span className="last-updated">
-            Ultima actualizacion: {formatLastUpdate(lastUpdated)}
-          </span>
-        </div>
+        {metricsGrid}
+        {meta}
       </div>
     </section>
   );

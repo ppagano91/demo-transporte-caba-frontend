@@ -8,14 +8,11 @@ const stationKey = (station: EcobiciStationMerged, index: number): string => {
   return station.external_id ?? `${station.station_id}-${index}`;
 };
 
-type EcobiciView = "map" | "table";
-
 function EcobiciPage() {
   const [refreshIntervalMs, setRefreshIntervalMs] = useState(15000);
   const [textFilter, setTextFilter] = useState("");
   const [inServiceOnly, setInServiceOnly] = useState(false);
   const [withBikesOnly, setWithBikesOnly] = useState(false);
-  const [activeView, setActiveView] = useState<EcobiciView>("map");
 
   const {
     stations,
@@ -62,126 +59,67 @@ function EcobiciPage() {
 
   return (
     <section className="ecobici-page">
-      <SectionOverview
-        kicker="Operacion"
-        title="Estado general de estaciones"
-        description="La vista principal prioriza el mapa y deja la exploracion detallada dentro de una vista de tabla separada."
-        actions={
-          <>
-            <button
-              className="secondary"
-              onClick={refreshNow}
-              disabled={loading || isRefreshing}
-            >
-              Actualizar ahora
-            </button>
+      <section className="page-split-layout">
+        <div className="page-split-sidebar">
+          <SectionOverview
+            kicker="Operacion"
+            title="Estado general de estaciones"
+            // description="Resumen, refresco y exploracion detallada reunidos en un panel lateral para dejar el mapa siempre visible."
+            actions={
+              <>
+                <button
+                  className="secondary"
+                  onClick={refreshNow}
+                  disabled={loading || isRefreshing}
+                >
+                  Actualizar ahora
+                </button>
 
-            <label className="field">
-              <span>Intervalo</span>
-              <select
-                value={refreshIntervalMs}
-                onChange={(event) =>
-                  setRefreshIntervalMs(Number(event.target.value))
-                }
-              >
-                <option value={10000}>10s</option>
-                <option value={15000}>15s</option>
-                <option value={30000}>30s</option>
-              </select>
-            </label>
-          </>
-        }
-        metrics={[
-          { label: "Estaciones totales", value: stations.length },
-          { label: "Estaciones visibles", value: visibleStations.length },
-          {
-            label: "Filtros",
-            value: hasActiveFilters ? "Aplicados" : "Sin filtros",
-            tone: hasActiveFilters ? "accent" : "default",
-          },
-        ]}
-        isRefreshing={isRefreshing}
-        lastUpdated={lastUpdated}
-      />
+                <select
+                  value={refreshIntervalMs}
+                  onChange={(event) =>
+                    setRefreshIntervalMs(Number(event.target.value))
+                  }
+                >
+                  <option value={10000}>10s</option>
+                  <option value={15000}>15s</option>
+                  <option value={30000}>30s</option>
+                </select>
+              </>
+            }
+            metrics={[
+              { label: "Estaciones totales", value: stations.length },
+              { label: "Estaciones visibles", value: visibleStations.length },
+              {
+                label: "Filtros",
+                value: hasActiveFilters ? "Aplicados" : "Sin filtros",
+                tone: hasActiveFilters ? "accent" : "default",
+              },
+            ]}
+            isRefreshing={isRefreshing}
+            lastUpdated={lastUpdated}
+          />
 
-      {error && <div className="state-banner-static error">Error: {error}</div>}
-      {!error && loading && (
-        <div className="state-banner-static loading">
-          Cargando estaciones...
-        </div>
-      )}
-      {!error && !loading && empty && (
-        <div className="state-banner-static empty">
-          Sin estaciones con coordenadas validas para mostrar.
-        </div>
-      )}
-
-      <section className="ecobici-layout">
-        <div
-          className="view-toggle"
-          role="tablist"
-          aria-label="Cambiar vista de Ecobici"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeView === "map"}
-            className={activeView === "map" ? "view-toggle-button active" : "view-toggle-button"}
-            onClick={() => setActiveView("map")}
-          >
-            Mapa
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeView === "table"}
-            className={activeView === "table" ? "view-toggle-button active" : "view-toggle-button"}
-            onClick={() => setActiveView("table")}
-          >
-            Tabla
-          </button>
-        </div>
-
-        {activeView === "map" ? (
-          <article className="ecobici-card ecobici-map-card ecobici-map-card-primary">
-            <div className="ecobici-section-header">
-              <div>
-                <p className="section-kicker">Vista principal</p>
-                <h2>Mapa de estaciones</h2>
-                <p className="ecobici-section-copy">
-                  El mapa ocupa el foco principal de la pantalla y ya no compite
-                  con la tabla en la misma vista.
-                </p>
-              </div>
-              <div className="ecobici-map-badges">
-                {hasActiveFilters ? (
-                  <span className="badge filtered">Filtros aplicados desde Tabla</span>
-                ) : null}
-                <span className={`badge ${hasActiveFilters ? "filtered" : ""}`}>
-                  {visibleStations.length} visibles
-                </span>
-              </div>
+          {error && (
+            <div className="state-banner-static error">Error: {error}</div>
+          )}
+          {!error && loading && (
+            <div className="state-banner-static loading">
+              Cargando estaciones...
             </div>
-
-            <div className="ecobici-map-panel">
-              <EcobiciMapView stations={visibleStations} />
+          )}
+          {!error && !loading && empty && (
+            <div className="state-banner-static empty">
+              Sin estaciones con coordenadas validas para mostrar.
             </div>
-          </article>
-        ) : (
+          )}
+
           <article className="ecobici-card ecobici-stations-card">
             <div className="ecobici-section-header">
-              <div>
+              <div className="ecobici-section-heading">
                 <p className="section-kicker">Exploracion</p>
                 <h2>Tabla y filtros</h2>
-                <p className="ecobici-section-copy">
-                  El buscador y los filtros quedan contenidos en esta vista para
-                  que el mapa se mantenga limpio cuando no estas analizando el
-                  listado.
-                </p>
               </div>
-              <span className={`badge ${hasActiveFilters ? "filtered" : ""}`}>
-                {hasActiveFilters ? "Filtros activos" : "Sin filtros"}
-              </span>
             </div>
 
             <div className="ecobici-table-toolbar">
@@ -252,7 +190,32 @@ function EcobiciPage() {
               </div>
             )}
           </article>
-        )}
+        </div>
+
+        <div className="page-split-main">
+          <article className="ecobici-card ecobici-map-card ecobici-map-card-primary map-feature-card">
+            <div className="ecobici-section-header">
+              <div className="ecobici-section-heading">
+                <p className="section-kicker">Vista principal</p>
+                <h2>Mapa de estaciones</h2>
+                <p className="ecobici-section-copy">
+                  Vista principal de estaciones con el mapa siempre disponible
+                  como elemento dominante de la pantalla.
+                </p>
+              </div>
+              <div className="ecobici-map-badges">
+                <span className="badge">{stations.length} totales</span>
+                <span className={`badge ${hasActiveFilters ? "filtered" : ""}`}>
+                  {visibleStations.length} visibles
+                </span>
+              </div>
+            </div>
+
+            <div className="ecobici-map-panel">
+              <EcobiciMapView stations={visibleStations} />
+            </div>
+          </article>
+        </div>
       </section>
     </section>
   );

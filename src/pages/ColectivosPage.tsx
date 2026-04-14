@@ -56,79 +56,109 @@ function ColectivosPage() {
 
   return (
     <section className="colectivos-page">
-      <SectionOverview
-        kicker="Operacion"
-        title="Monitoreo de colectivos"
-        description="El estado de actualizacion y el resumen quedan separados de los filtros para que el mapa gane claridad."
-        actions={
-          <>
-            <button
-              className="secondary"
-              onClick={refreshNow}
-              disabled={loading || !hasActiveFilter}
-            >
-              Actualizar ahora
-            </button>
+      <section className="page-split-layout">
+        <div className="page-split-sidebar">
+          <SectionOverview
+            kicker="Operacion"
+            title="Monitoreo de colectivos"
+            // description="El resumen operativo, el estado de actualizacion y los controles viven en un panel lateral para despejar la entrada del mapa."
+            actions={
+              <>
+                <button
+                  className="secondary"
+                  onClick={refreshNow}
+                  disabled={loading || !hasActiveFilter}
+                >
+                  Actualizar ahora
+                </button>
 
-            <label className="field">
-              <span>Refresco</span>
-              <select
-                value={refreshIntervalMs}
-                onChange={(event) =>
-                  setRefreshIntervalMs(Number(event.target.value))
-                }
-              >
-                <option value={5000}>5s</option>
-                <option value={10000}>10s</option>
-                <option value={30000}>30s</option>
-                <option value={60000}>1m</option>
-              </select>
-            </label>
-          </>
-        }
-        metrics={[
-          { label: "Vehiculos visibles", value: vehicles.length },
-          {
-            label: "Filtro aplicado",
-            value: activeFilterLabel,
-            tone: hasActiveFilter ? "accent" : "default",
-          },
-          { label: "Color marcador", value: markerColor.toUpperCase() },
-        ]}
-        isRefreshing={isRefreshing}
-        lastUpdated={lastUpdated}
-      />
+                <select
+                  value={refreshIntervalMs}
+                  onChange={(event) =>
+                    setRefreshIntervalMs(Number(event.target.value))
+                  }
+                >
+                  <option value={5000}>5s</option>
+                  <option value={10000}>10s</option>
+                  <option value={30000}>30s</option>
+                  <option value={60000}>1m</option>
+                </select>
+              </>
+            }
+            metrics={[
+              { label: "Vehiculos visibles", value: vehicles.length },
+              {
+                label: "Filtro aplicado",
+                value: activeFilterLabel,
+                tone: hasActiveFilter ? "accent" : "default",
+              },
+              { label: "Color marcador", value: markerColor.toUpperCase() },
+            ]}
+            isRefreshing={isRefreshing}
+            lastUpdated={lastUpdated}
+          />
 
-      <Toolbar
-        routeIdInput={draftRouteId}
-        onRouteIdInputChange={setDraftRouteId}
-        agencyIdInput={draftAgencyId}
-        onAgencyIdInputChange={setDraftAgencyId}
-        markerColor={markerColor}
-        onMarkerColorChange={setMarkerColor}
-        onApplyFilter={handleApplyFilter}
-        onClearFilter={handleClearFilter}
-        hasActiveFilter={hasActiveFilter}
-        canSearch={canSearch}
-        loading={loading}
-      />
+          <Toolbar
+            routeIdInput={draftRouteId}
+            onRouteIdInputChange={setDraftRouteId}
+            agencyIdInput={draftAgencyId}
+            onAgencyIdInputChange={setDraftAgencyId}
+            markerColor={markerColor}
+            onMarkerColorChange={setMarkerColor}
+            onApplyFilter={handleApplyFilter}
+            onClearFilter={handleClearFilter}
+            hasActiveFilter={hasActiveFilter}
+            canSearch={canSearch}
+            loading={loading}
+          />
 
-      <section className="map-panel">
-        {error && <div className="state-banner error">Error: {error}</div>}
-        {!error && loading && (
-          <div className="state-banner loading">Cargando posiciones...</div>
-        )}
-        {!error && !loading && !hasActiveFilter && (
-          <div className="state-banner empty">
-            Ingresa route_id o agency_id para buscar vehiculos.
-          </div>
-        )}
-        {!error && !loading && hasActiveFilter && empty && (
-          <div className="state-banner empty">
-            Sin resultados para los filtros actuales.
-          </div>
-        )}
-        <MapView vehicles={vehicles} markerBackgroundColor={markerColor} />
+          {error && (
+            <div className="state-banner-static error">Error: {error}</div>
+          )}
+          {!error && loading && (
+            <div className="state-banner-static loading">
+              Cargando posiciones...
+            </div>
+          )}
+          {!error && !loading && !hasActiveFilter && (
+            <div className="state-banner-static empty">
+              Ingresa route_id o agency_id para buscar vehiculos.
+            </div>
+          )}
+          {!error && !loading && hasActiveFilter && empty && (
+            <div className="state-banner-static empty">
+              Sin resultados para los filtros actuales.
+            </div>
+          )}
+        </div>
+
+        <div className="page-split-main">
+          <article className="map-feature-card">
+            <div className="map-feature-header">
+              <div className="map-feature-heading">
+                <p className="section-kicker">Vista principal</p>
+                <h2>Mapa de vehiculos</h2>
+                <p className="map-feature-copy">
+                  El mapa queda como foco principal desde el primer vistazo para
+                  facilitar la exploracion del servicio.
+                </p>
+              </div>
+              <div className="map-feature-badges">
+                <span className="badge">{vehicles.length} visibles</span>
+                <span className={`badge ${hasActiveFilter ? "filtered" : ""}`}>
+                  {hasActiveFilter ? "Filtros activos" : "Sin filtros"}
+                </span>
+              </div>
+            </div>
+
+            <section className="map-panel">
+              <MapView
+                vehicles={vehicles}
+                markerBackgroundColor={markerColor}
+              />
+            </section>
+          </article>
+        </div>
       </section>
     </section>
   );

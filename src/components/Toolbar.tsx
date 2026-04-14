@@ -31,14 +31,11 @@ function Toolbar({
         <div>
           <p className="section-kicker">Filtros</p>
           <h2>Busqueda de vehiculos</h2>
-          <p className="toolbar-copy">
-            Ajusta route_id, agency_id y apariencia del marcador sin mezclar estos
-            controles con el estado de actualizacion.
-          </p>
+          {/* <p className="toolbar-copy">
+            Ajusta route_id, agency_id y apariencia del marcador sin mezclar
+            estos controles con el estado de actualizacion.
+          </p> */}
         </div>
-        <span className={`badge ${hasActiveFilter ? "filtered" : ""}`}>
-          {hasActiveFilter ? "Filtros activos" : "Sin filtros"}
-        </span>
       </div>
 
       <div className="toolbar-controls">
