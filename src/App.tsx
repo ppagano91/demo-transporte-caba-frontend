@@ -7,6 +7,25 @@ import "./App.css";
 
 type AppPage = "colectivos" | "subtes" | "ecobici" | "semaforos";
 
+const PAGE_META: Record<AppPage, { title: string; description: string }> = {
+  colectivos: {
+    title: "Colectivos",
+    description: "Visualizacion en tiempo real de posiciones de vehiculos.",
+  },
+  subtes: {
+    title: "Subtes GTFS",
+    description: "Consulta de forecastGTFS desde el backend local.",
+  },
+  ecobici: {
+    title: "Ecobici",
+    description: "Mapa y estado operativo de estaciones en tiempo real.",
+  },
+  semaforos: {
+    title: "Semaforos",
+    description: "Visualizacion simple de semaforos sobre el mapa de la Ciudad.",
+  },
+};
+
 const detectPageFromPath = (path: string): AppPage => {
   if (path.startsWith("/subtes")) {
     return "subtes";
@@ -64,33 +83,44 @@ function App() {
 
   return (
     <main className="app-shell">
-      <nav className="top-nav">
-        <button
-          className={activePage === "colectivos" ? "" : "secondary"}
-          onClick={() => openPage("colectivos")}
-        >
-          Colectivos
-        </button>
-        <button
-          className={activePage === "subtes" ? "" : "secondary"}
-          onClick={() => openPage("subtes")}
-        >
-          Subtes GTFS
-        </button>
-        <button
-          className={activePage === "ecobici" ? "" : "secondary"}
-          onClick={() => openPage("ecobici")}
-        >
-          Ecobici
-        </button>
-        <button
-          className={activePage === "semaforos" ? "" : "secondary"}
-          onClick={() => openPage("semaforos")}
-        >
-          Semaforos
-        </button>
-      </nav>
-      {pageContent}
+      <header className="app-topbar">
+        <div className="app-topbar-copy">
+          <p className="app-shell-kicker">Demo API Transporte GCBA</p>
+          <div className="app-topbar-heading">
+            <h1>{PAGE_META[activePage].title}</h1>
+            <p>{PAGE_META[activePage].description}</p>
+          </div>
+        </div>
+
+        <nav className="top-nav" aria-label="Secciones principales">
+          <button
+            className={activePage === "colectivos" ? "nav-button active" : "nav-button"}
+            onClick={() => openPage("colectivos")}
+          >
+            Colectivos
+          </button>
+          <button
+            className={activePage === "subtes" ? "nav-button active" : "nav-button"}
+            onClick={() => openPage("subtes")}
+          >
+            Subtes GTFS
+          </button>
+          <button
+            className={activePage === "ecobici" ? "nav-button active" : "nav-button"}
+            onClick={() => openPage("ecobici")}
+          >
+            Ecobici
+          </button>
+          <button
+            className={activePage === "semaforos" ? "nav-button active" : "nav-button"}
+            onClick={() => openPage("semaforos")}
+          >
+            Semaforos
+          </button>
+        </nav>
+      </header>
+
+      <section className="app-content">{pageContent}</section>
     </main>
   );
 }

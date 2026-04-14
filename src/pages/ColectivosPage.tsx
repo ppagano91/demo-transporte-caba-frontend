@@ -1,5 +1,6 @@
 import { useState } from "react";
 import MapView from "../components/MapView";
+import SectionOverview from "../components/SectionOverview";
 import Toolbar from "../components/Toolbar";
 import { useVehiclePositions } from "../hooks/useVehiclePositions";
 
@@ -14,6 +15,14 @@ function ColectivosPage() {
     draftRouteId.trim().length > 0 || draftAgencyId.trim().length > 0;
   const hasActiveFilter =
     appliedRouteId.trim().length > 0 || appliedAgencyId.trim().length > 0;
+  const activeFilterLabel = hasActiveFilter
+    ? [
+        appliedRouteId ? `route_id=${appliedRouteId}` : null,
+        appliedAgencyId ? `agency_id=${appliedAgencyId}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ")
+    : "Sin filtros";
 
   const {
     vehicles,
@@ -46,11 +55,49 @@ function ColectivosPage() {
   };
 
   return (
-    <>
-      <header className="app-header">
-        <h1>Demo Visor Colectivos GCBA</h1>
-        <p>Visualizacion en tiempo real de posiciones de vehiculos.</p>
-      </header>
+    <section className="colectivos-page">
+      <SectionOverview
+        kicker="Operacion"
+        title="Monitoreo de colectivos"
+        description="El estado de actualizacion y el resumen quedan separados de los filtros para que el mapa gane claridad."
+        actions={
+          <>
+            <button
+              className="secondary"
+              onClick={refreshNow}
+              disabled={loading || !hasActiveFilter}
+            >
+              Actualizar ahora
+            </button>
+
+            <label className="field">
+              <span>Refresco</span>
+              <select
+                value={refreshIntervalMs}
+                onChange={(event) =>
+                  setRefreshIntervalMs(Number(event.target.value))
+                }
+              >
+                <option value={5000}>5s</option>
+                <option value={10000}>10s</option>
+                <option value={30000}>30s</option>
+                <option value={60000}>1m</option>
+              </select>
+            </label>
+          </>
+        }
+        metrics={[
+          { label: "Vehiculos visibles", value: vehicles.length },
+          {
+            label: "Filtro aplicado",
+            value: activeFilterLabel,
+            tone: hasActiveFilter ? "accent" : "default",
+          },
+          { label: "Color marcador", value: markerColor.toUpperCase() },
+        ]}
+        isRefreshing={isRefreshing}
+        lastUpdated={lastUpdated}
+      />
 
       <Toolbar
         routeIdInput={draftRouteId}
@@ -61,17 +108,9 @@ function ColectivosPage() {
         onMarkerColorChange={setMarkerColor}
         onApplyFilter={handleApplyFilter}
         onClearFilter={handleClearFilter}
-        onRefreshNow={refreshNow}
-        refreshIntervalMs={refreshIntervalMs}
-        onRefreshIntervalChange={setRefreshIntervalMs}
-        lastUpdated={lastUpdated}
-        totalVehicles={vehicles.length}
         hasActiveFilter={hasActiveFilter}
-        appliedRouteId={appliedRouteId}
-        appliedAgencyId={appliedAgencyId}
         canSearch={canSearch}
         loading={loading}
-        isRefreshing={isRefreshing}
       />
 
       <section className="map-panel">
@@ -91,7 +130,7 @@ function ColectivosPage() {
         )}
         <MapView vehicles={vehicles} markerBackgroundColor={markerColor} />
       </section>
-    </>
+    </section>
   );
 }
 

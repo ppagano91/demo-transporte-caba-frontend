@@ -522,7 +522,10 @@ function SemaforosMapView({ semaforos }: SemaforosMapViewProps) {
           await ensureSemaforosIconAndLayers(createdMap);
           mapLoadedRef.current = true;
           setMapReady(true);
-        } catch (error) {}
+        } catch {
+          mapLoadedRef.current = false;
+          setMapReady(false);
+        }
       };
 
       createdMap.on("load", onLoad);

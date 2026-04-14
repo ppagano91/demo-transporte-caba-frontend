@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import SectionOverview from "../components/SectionOverview";
 import { useSubteForecast } from "../hooks/useSubteForecast";
 import type { SubteEntityForecast } from "../types/subte";
 
@@ -45,17 +46,6 @@ const formatDelay = (seconds?: number): string => {
   }
 
   return `${sign}${absoluteSeconds}s`;
-};
-
-const formatLastUpdate = (value: Date | null): string => {
-  if (!value) {
-    return "-";
-  }
-  return new Intl.DateTimeFormat("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(value);
 };
 
 const entityKey = (entity: SubteEntityForecast, index: number): string => {
@@ -138,61 +128,60 @@ function SubteForecastPage() {
 
   return (
     <section className="subte-page">
-      <header className="app-header">
-        <h1>Pronostico GTFS Subtes</h1>
-        <p>Consulta de forecastGTFS desde el backend local.</p>
-      </header>
-
-      <section className="subte-toolbar">
-        <div className="toolbar-controls">
-          <button
-            onClick={refreshNow}
-            disabled={loading || isRefreshing}
-            className="secondary"
-          >
-            Actualizar ahora
-          </button>
-
-          <label className="field inline">
-            <span>Auto refresh</span>
-            <input
-              type="checkbox"
-              checked={autoRefreshEnabled}
-              onChange={(event) => setAutoRefreshEnabled(event.target.checked)}
-            />
-          </label>
-
-          <label className="field">
-            <span>Intervalo</span>
-            <select
-              value={refreshIntervalMs}
-              disabled={!autoRefreshEnabled}
-              onChange={(event) =>
-                setRefreshIntervalMs(Number(event.target.value))
-              }
+      <SectionOverview
+        kicker="Operacion"
+        title="Pronostico GTFS"
+        description="La actualizacion, el timestamp y los controles de refresco comparten la misma estructura visual del resto de la app."
+        actions={
+          <>
+            <button
+              onClick={refreshNow}
+              disabled={loading || isRefreshing}
+              className="secondary"
             >
-              <option value={10000}>10s</option>
-              <option value={15000}>15s</option>
-              <option value={30000}>30s</option>
-            </select>
-          </label>
-        </div>
+              Actualizar ahora
+            </button>
 
-        <div className="toolbar-status">
-          <span className="badge">Viajes: {totalEntities}</span>
-          <span className="badge">
-            Timestamp Header: {formatDateTime(data?.headerTimestamp)}
-          </span>
-          <span
-            className={`update-state ${isRefreshing ? "refreshing" : "idle"}`}
-          >
-            {isRefreshing ? "Actualizando..." : "Estable"}
-          </span>
-          <span className="last-updated">
-            Ultima actualizacion: {formatLastUpdate(lastUpdated)}
-          </span>
-        </div>
-      </section>
+            <label className="field inline">
+              <span>Auto refresh</span>
+              <input
+                type="checkbox"
+                checked={autoRefreshEnabled}
+                onChange={(event) => setAutoRefreshEnabled(event.target.checked)}
+              />
+            </label>
+
+            <label className="field">
+              <span>Intervalo</span>
+              <select
+                value={refreshIntervalMs}
+                disabled={!autoRefreshEnabled}
+                onChange={(event) =>
+                  setRefreshIntervalMs(Number(event.target.value))
+                }
+              >
+                <option value={10000}>10s</option>
+                <option value={15000}>15s</option>
+                <option value={30000}>30s</option>
+              </select>
+            </label>
+          </>
+        }
+        metrics={[
+          { label: "Viajes", value: totalEntities },
+          {
+            label: "Timestamp header",
+            value: formatDateTime(data?.headerTimestamp),
+          },
+          {
+            label: "Auto refresh",
+            value: autoRefreshEnabled ? "Activo" : "Pausado",
+            tone: autoRefreshEnabled ? "accent" : "default",
+          },
+        ]}
+        isRefreshing={isRefreshing}
+        lastUpdated={lastUpdated}
+      />
 
       {error && <div className="state-banner-static error">Error: {error}</div>}
       {!error && loading && (

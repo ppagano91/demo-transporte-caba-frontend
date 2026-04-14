@@ -527,7 +527,10 @@ function EcobiciMapView({ stations }: EcobiciMapViewProps) {
           await ensureEcobiciIconAndLayers(createdMap);
           mapLoadedRef.current = true;
           setMapReady(true);
-        } catch (error) {}
+        } catch {
+          mapLoadedRef.current = false;
+          setMapReady(false);
+        }
       };
       createdMap.on("load", onLoad);
     };
