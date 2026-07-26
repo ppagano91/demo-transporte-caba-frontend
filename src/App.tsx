@@ -13,8 +13,8 @@ const PAGE_META: Record<AppPage, { title: string; description: string }> = {
     description: "Visualizacion en tiempo real de posiciones de vehiculos.",
   },
   subtes: {
-    title: "Subtes",
-    description: "Consultá la red y las próximas llegadas de las líneas de subte.",
+    title: "Red de Subtes",
+    description: "Consultá recorridos, estaciones y próximas llegadas.",
   },
   ecobici: {
     title: "Ecobici",

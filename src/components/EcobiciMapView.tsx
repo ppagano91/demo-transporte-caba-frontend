@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { EcobiciStationMerged } from "../types/ecobici";
 import bikeIcon from "../assets/bike.svg";
+import { MAP_BASEMAP_STYLE } from "../constants/mapBasemap";
+import type { EcobiciStationMerged } from "../types/ecobici";
 
 interface EcobiciMapViewProps {
   stations: EcobiciStationMerged[];
@@ -132,25 +133,6 @@ interface EcobiciMapLibreApi {
   }) => EcobiciMapLibrePopup;
 }
 
-const MAP_STYLE_URL = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [
-    {
-      id: "osm",
-      type: "raster",
-      source: "osm",
-    },
-  ],
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-};
 const MAPLIBRE_SCRIPT_ID = "maplibre-js-cdn";
 const MAPLIBRE_CSS_ID = "maplibre-css-cdn";
 const MAPLIBRE_SCRIPT_URL =
@@ -514,7 +496,7 @@ function EcobiciMapView({ stations }: EcobiciMapViewProps) {
 
       const createdMap = new mapLibre.Map({
         container: containerRef.current,
-        style: MAP_STYLE_URL,
+          style: MAP_BASEMAP_STYLE,
         center: [-58.3816, -34.6037],
         zoom: 11,
       });

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MAP_BASEMAP_STYLE } from "../constants/mapBasemap";
 import {
   getSubwayLineColor,
   getSubwayLineStyle,
@@ -138,26 +139,6 @@ interface MapLibreApi {
     offset?: number;
   }) => MapLibrePopup;
 }
-
-const MAP_STYLE_URL = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [
-    {
-      id: "osm",
-      type: "raster",
-      source: "osm",
-    },
-  ],
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-};
 
 const MAPLIBRE_SCRIPT_ID = "maplibre-js-cdn";
 const MAPLIBRE_CSS_ID = "maplibre-css-cdn";
@@ -630,7 +611,7 @@ function SubteMapView({
 
         mapInstance = new maplibre.Map({
           container: containerRef.current,
-          style: MAP_STYLE_URL,
+          style: MAP_BASEMAP_STYLE,
           center: [-58.42, -34.61],
           zoom: 11.4,
         });

@@ -187,17 +187,6 @@ function SubteForecastPage() {
       : null;
   }, [availableDirections, selectedDirectionKey]);
 
-  const selectedDirection = useMemo(() => {
-    if (!resolvedDirectionKey) {
-      return null;
-    }
-    return (
-      availableDirections.find(
-        (direction) => direction.key === resolvedDirectionKey,
-      ) ?? null
-    );
-  }, [availableDirections, resolvedDirectionKey]);
-
   const orderedEntities = useMemo(
     () =>
       lineEntities.filter((entity) =>
@@ -430,16 +419,25 @@ function SubteForecastPage() {
 
   const selectedLineStyle = getSubwayLineStyle(selectedLine);
   const staticReady = Boolean(network || stations);
+  const effectivePanelState: SubtePanelState = isDesktopSplit
+    ? "expanded"
+    : panelState;
   const layoutRevision =
     (isDesktopSplit ? 10 : 0) +
-    (panelState === "closed" ? 0 : 1) +
-    (panelState === "expanded" ? 2 : 0) +
-    (panelState === "summary" ? 4 : 0) +
+    (effectivePanelState === "closed" ? 0 : 1) +
+    (effectivePanelState === "expanded" ? 2 : 0) +
+    (effectivePanelState === "summary" ? 4 : 0) +
     layoutTick * 8;
 
   useEffect(() => {
     const wasDesktopSplit = wasDesktopSplitRef.current;
     wasDesktopSplitRef.current = isDesktopSplit;
+
+    if (isDesktopSplit) {
+      // En split laptop/escritorio el panel permanece siempre visible.
+      setPanelState("expanded");
+      return;
+    }
 
     if (wasDesktopSplit && !isDesktopSplit) {
       // Al salir del split, evitar llevar fullscreen / panel expandido al overlay.
@@ -454,12 +452,12 @@ function SubteForecastPage() {
     tab: SubtePanelTab = "arrivals",
   ) => {
     setPanelTab(tab);
-    if (preferred === "closed") {
-      setPanelState("closed");
+    if (isDesktopSplit) {
+      setPanelState("expanded");
       return;
     }
-    if (isDesktopSplit && preferred === "summary") {
-      setPanelState("expanded");
+    if (preferred === "closed") {
+      setPanelState("closed");
       return;
     }
     setPanelState(preferred);
@@ -547,31 +545,16 @@ function SubteForecastPage() {
     ],
   );
 
-  const effectivePanelState: SubtePanelState = panelState;
   const panelIsClosed = effectivePanelState === "closed";
   const mapStageClassName = [
     "subte-map-stage",
     isDesktopSplit ? "is-split" : "is-overlay",
-    isDesktopSplit && panelIsClosed ? "is-panel-closed" : "",
-    isDesktopSplit && effectivePanelState === "expanded"
-      ? "is-panel-expanded"
-      : "",
-    isDesktopSplit && effectivePanelState === "summary"
-      ? "is-panel-summary"
-      : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
     <section className="subte-page">
-      <div className="subte-toolbar">
-        <div className="subte-toolbar-copy">
-          <p className="subte-section-kicker">Subtes</p>
-          <h2>Red de subterráneos</h2>
-        </div>
-      </div>
-
       <div
         className="subte-line-filters"
         role="toolbar"
@@ -689,19 +672,6 @@ function SubteForecastPage() {
               ) : null}
             </button>
           ) : null}
-
-          {isDesktopSplit && panelIsClosed ? (
-            <button
-              type="button"
-              className="subte-reopen-panel-btn"
-              onClick={() => openPanel("expanded", "arrivals")}
-              aria-label="Mostrar información"
-              title="Mostrar información"
-            >
-              <span aria-hidden="true">‹</span>
-              Info
-            </button>
-          ) : null}
         </div>
 
         <SubteInfoPanel
@@ -713,7 +683,6 @@ function SubteForecastPage() {
           selectedStationLineLabel={selectedStationLineLabel}
           directions={availableDirections}
           selectedDirectionKey={resolvedDirectionKey}
-          selectedDirection={selectedDirection}
           activeTab={panelTab}
           onActiveTabChange={setPanelTab}
           onSelectDirection={(key) => {
@@ -749,8 +718,16 @@ function SubteForecastPage() {
             setSelectedArrivalKey(null);
             setPanelTab("arrivals");
           }}
-          onClose={() => setPanelState("closed")}
-          onMinimize={() => setPanelState("summary")}
+          onClose={() => {
+            if (!isDesktopSplit) {
+              setPanelState("closed");
+            }
+          }}
+          onMinimize={() => {
+            if (!isDesktopSplit) {
+              setPanelState("summary");
+            }
+          }}
           onExpand={() => setPanelState("expanded")}
           onClearStation={() => setSelectedStationId(null)}
           onLayoutTransitionEnd={() => {

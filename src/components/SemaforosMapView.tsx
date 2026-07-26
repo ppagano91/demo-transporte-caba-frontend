@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import trafficLightIcon from "../assets/traffic_light.svg";
+import { MAP_BASEMAP_STYLE } from "../constants/mapBasemap";
 import type { SemaforoMapItem } from "../types/semaforos";
 
 interface SemaforosMapViewProps {
@@ -128,25 +129,6 @@ interface SemaforosMapLibreApi {
   }) => SemaforosMapLibrePopup;
 }
 
-const MAP_STYLE_URL = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [
-    {
-      id: "osm",
-      type: "raster",
-      source: "osm",
-    },
-  ],
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-};
 const MAPLIBRE_SCRIPT_ID = "maplibre-js-cdn";
 const MAPLIBRE_CSS_ID = "maplibre-css-cdn";
 const MAPLIBRE_SCRIPT_URL =
@@ -508,7 +490,7 @@ function SemaforosMapView({ semaforos }: SemaforosMapViewProps) {
 
       const createdMap = new mapLibre.Map({
         container: containerRef.current,
-        style: MAP_STYLE_URL,
+          style: MAP_BASEMAP_STYLE,
         center: [-58.3816, -34.6037],
         zoom: 11,
       });

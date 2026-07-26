@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { VehiclePosition } from "../types/vehicle";
 import busIcon from "../assets/bus.svg";
+import { MAP_BASEMAP_STYLE } from "../constants/mapBasemap";
+import type { VehiclePosition } from "../types/vehicle";
 
 interface MapViewProps {
   vehicles: VehiclePosition[];
@@ -51,25 +52,6 @@ declare global {
   }
 }
 
-// const MAP_STYLE_URL = 'https://demotiles.maplibre.org/style.json'
-const MAP_STYLE_URL = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [
-    {
-      id: "osm",
-      type: "raster",
-      source: "osm",
-    },
-  ],
-};
 const MAPLIBRE_SCRIPT_ID = "maplibre-js-cdn";
 const MAPLIBRE_CSS_ID = "maplibre-css-cdn";
 const MAPLIBRE_SCRIPT_URL =
@@ -281,7 +263,7 @@ function MapView({ vehicles, markerBackgroundColor }: MapViewProps) {
 
       mapRef.current = new window.maplibregl.Map({
         container: containerRef.current,
-        style: MAP_STYLE_URL,
+          style: MAP_BASEMAP_STYLE,
         center: [-58.3816, -34.6037],
         zoom: 11,
       });

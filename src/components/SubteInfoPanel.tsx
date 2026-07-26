@@ -42,7 +42,6 @@ interface SubteInfoPanelProps {
   selectedStationLineLabel: string | null;
   directions: SubwayDirection[];
   selectedDirectionKey: string | null;
-  selectedDirection: SubwayDirection | null;
   activeTab: SubtePanelTab;
   onActiveTabChange: (tab: SubtePanelTab) => void;
   onSelectDirection: (key: string | null) => void;
@@ -281,7 +280,6 @@ function SubteInfoPanel({
   selectedStationLineLabel,
   directions,
   selectedDirectionKey,
-  selectedDirection,
   activeTab,
   onActiveTabChange,
   onSelectDirection,
@@ -317,31 +315,12 @@ function SubteInfoPanel({
   const arrivalsPanelId = `${tabsId}-arrivals-panel`;
   const stationsPanelId = `${tabsId}-stations-panel`;
   const showSheetChrome = isMobile && !isDesktopSplit;
-
-  const headerIdentity = (() => {
-    if (!selectedLine || !lineStyle) {
-      return { title: "Red de Subtes", showBadge: false as const };
-    }
-
-    const origin =
-      selectedDirection?.originName ??
-      directions.find((item) => item.originName)?.originName;
-    const destination =
-      selectedDirection?.destinationName ??
-      directions.find((item) => item.destinationName)?.destinationName;
-
-    if (origin && destination) {
-      return {
-        title: `${origin} ↔ ${destination}`,
-        showBadge: true as const,
-      };
-    }
-
-    return {
-      title: lineStyle.label.replace(/^Linea\s+/i, "Línea "),
-      showBadge: true as const,
-    };
-  })();
+  /** Expandir / Reducir / Cerrar solo en overlay (tablet / celular). */
+  const showSizeControls = !isDesktopSplit;
+  const showCloseControl = !isDesktopSplit;
+  const showLineBadge = Boolean(selectedLine && lineStyle);
+  const showStationLineHint =
+    Boolean(selectedStationName && selectedStationLineLabel && !selectedLine);
 
   const statusMessage = (() => {
     if (forecastLoading) {
@@ -370,6 +349,7 @@ function SubteInfoPanel({
     isDesktopSplit ? "is-split" : isMobile ? "is-mobile" : "is-desktop",
     `state-${state}`,
     isOpen ? "is-open" : "is-closed",
+    showLineBadge ? "has-line" : "no-line",
   ].join(" ");
 
   useEffect(() => {
@@ -387,7 +367,7 @@ function SubteInfoPanel({
   }, [showSheetChrome, isOpen, isExpanded]);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || isDesktopSplit) {
       return;
     }
 
@@ -404,7 +384,7 @@ function SubteInfoPanel({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, isExpanded, onMinimize, onClose]);
+  }, [isOpen, isExpanded, isDesktopSplit, onMinimize, onClose]);
 
   const showExpandedContent = !showSheetChrome || isExpanded;
   const hideLineBadgeInArrivals = Boolean(selectedLine);
@@ -413,7 +393,7 @@ function SubteInfoPanel({
     <aside
       className={panelClassName}
       aria-hidden={!isOpen}
-      aria-label="Panel de subtes"
+      aria-label="Información"
       onTransitionEnd={(event) => {
         if (event.target !== event.currentTarget) {
           return;
@@ -446,20 +426,20 @@ function SubteInfoPanel({
 
           <div className="subte-info-panel-header-row">
             <div className="subte-info-panel-heading">
-              <div className="subte-info-panel-identity">
-                {headerIdentity.showBadge && lineStyle ? (
+              {showLineBadge && lineStyle ? (
+                <div className="subte-info-panel-identity">
                   <span
                     className="subte-line-badge"
                     style={{
                       backgroundColor: lineStyle.color,
                       color: lineStyle.textColor,
                     }}
+                    aria-label={`Línea ${lineStyle.code}`}
                   >
                     {lineStyle.code}
                   </span>
-                ) : null}
-                <h2 title={headerIdentity.title}>{headerIdentity.title}</h2>
-              </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="subte-info-panel-actions">
@@ -474,47 +454,46 @@ function SubteInfoPanel({
                 <RefreshIcon className={refreshBusy ? "is-spinning" : undefined} />
               </button>
 
-              {isSummary ? (
+              {showSizeControls && isSummary ? (
                 <button
                   type="button"
                   className="subte-panel-icon-btn"
                   onClick={onExpand}
-                  aria-label={
-                    isDesktopSplit ? "Ampliar panel" : "Expandir panel"
-                  }
-                  title={isDesktopSplit ? "Ampliar" : "Expandir"}
+                  aria-label="Expandir panel"
+                  title="Expandir"
                 >
                   <ExpandIcon />
                 </button>
               ) : null}
 
-              {isExpanded ? (
+              {showSizeControls && isExpanded ? (
                 <button
                   type="button"
                   className="subte-panel-icon-btn"
                   onClick={onMinimize}
-                  aria-label={
-                    isDesktopSplit ? "Reducir ancho del panel" : "Reducir panel"
-                  }
+                  aria-label="Reducir panel"
                   title="Reducir"
                 >
                   <CollapseIcon />
                 </button>
               ) : null}
 
-              <button
-                type="button"
-                className="subte-panel-icon-btn"
-                onClick={onClose}
-                aria-label="Cerrar panel"
-                title="Cerrar"
-              >
-                <CloseIcon />
-              </button>
+              {showCloseControl ? (
+                <button
+                  type="button"
+                  className="subte-panel-icon-btn"
+                  onClick={onClose}
+                  aria-label="Cerrar panel"
+                  title="Cerrar"
+                >
+                  <CloseIcon />
+                </button>
+              ) : null}
             </div>
           </div>
         </header>
 
+        {(showDirectionSelector || selectedStationName) ? (
         <div className="subte-info-panel-toolbar">
           {showDirectionSelector ? (
             <div
@@ -547,7 +526,7 @@ function SubteInfoPanel({
             <div className="subte-selected-station">
               <div className="subte-selected-station-copy">
                 <strong>{selectedStationName}</strong>
-                {selectedStationLineLabel ? (
+                {showStationLineHint ? (
                   <span className="subte-detail-subtitle">
                     {selectedStationLineLabel}
                   </span>
@@ -563,6 +542,7 @@ function SubteInfoPanel({
             </div>
           ) : null}
         </div>
+        ) : null}
 
         {isSummary && showSheetChrome ? (
           <div className="subte-info-panel-body is-summary">
