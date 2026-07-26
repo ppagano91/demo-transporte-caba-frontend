@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import SubteInfoPanel, {
   type SubteArrivalItem,
   type SubtePanelState,
+  type SubtePanelTab,
 } from "../components/SubteInfoPanel";
-import SubteMapView from "../components/SubteMapView";
+import SubteMapView, {
+  type StationArrivalSummary,
+} from "../components/SubteMapView";
 import {
   SUBWAY_LINES,
   getSubwayLineStyle,
@@ -16,6 +19,7 @@ import type { SubteDisplayStation, SubteEntityForecast } from "../types/subte";
 import {
   buildStationDirectory,
   forecastStationMatchesSelection,
+  normalizeStationName,
   resolveForecastStation,
 } from "../utils/resolveStation";
 import {
@@ -41,6 +45,42 @@ const entityMatchesLine = (
   return parseSubwayLineCode(entity.Linea?.Route_Id) === line;
 };
 
+const formatArrivalLabel = (unixSeconds?: number, referenceTime?: number): string | undefined => {
+  if (!unixSeconds || !Number.isFinite(unixSeconds)) {
+    return undefined;
+  }
+  if (
+    referenceTime !== undefined &&
+    Number.isFinite(referenceTime) &&
+    unixSeconds >= referenceTime
+  ) {
+    const minutes = Math.max(0, Math.round((unixSeconds - referenceTime) / 60));
+    if (minutes <= 0) {
+      return "Ahora";
+    }
+    return `${minutes} min`;
+  }
+  return new Intl.DateTimeFormat("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(unixSeconds * 1000));
+};
+
+const formatDelayLabel = (seconds?: number): string | undefined => {
+  if (seconds === undefined || seconds === null || !Number.isFinite(seconds)) {
+    return undefined;
+  }
+  if (seconds === 0) {
+    return "A tiempo";
+  }
+  const absoluteSeconds = Math.abs(seconds);
+  const sign = seconds > 0 ? "+" : "-";
+  if (absoluteSeconds >= 60) {
+    return `${sign}${Math.floor(absoluteSeconds / 60)} m`;
+  }
+  return `${sign}${absoluteSeconds} s`;
+};
+
 const useIsMobile = (breakpointPx: number): boolean => {
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") {
@@ -63,6 +103,7 @@ const useIsMobile = (breakpointPx: number): boolean => {
 function SubteForecastPage() {
   const isMobile = useIsMobile(MOBILE_BREAKPOINT_PX);
   const [panelState, setPanelState] = useState<SubtePanelState>("closed");
+  const [panelTab, setPanelTab] = useState<SubtePanelTab>("arrivals");
   const [selectedEntityKey, setSelectedEntityKey] = useState<string | null>(
     null,
   );
@@ -116,40 +157,38 @@ function SubteForecastPage() {
     return listSubwayDirections(lineEntities, selectedLine, directionOptions);
   }, [lineEntities, selectedLine, directionOptions]);
 
-  useEffect(() => {
+  const resolvedDirectionKey = useMemo(() => {
     if (!selectedDirectionKey) {
-      return;
+      return null;
     }
-    if (
-      !availableDirections.some(
-        (direction) => direction.key === selectedDirectionKey,
-      )
-    ) {
-      setSelectedDirectionKey(null);
-    }
+    return availableDirections.some(
+      (direction) => direction.key === selectedDirectionKey,
+    )
+      ? selectedDirectionKey
+      : null;
   }, [availableDirections, selectedDirectionKey]);
 
   const selectedDirection = useMemo(() => {
-    if (!selectedDirectionKey) {
+    if (!resolvedDirectionKey) {
       return null;
     }
     return (
       availableDirections.find(
-        (direction) => direction.key === selectedDirectionKey,
+        (direction) => direction.key === resolvedDirectionKey,
       ) ?? null
     );
-  }, [availableDirections, selectedDirectionKey]);
+  }, [availableDirections, resolvedDirectionKey]);
 
   const orderedEntities = useMemo(
     () =>
       lineEntities.filter((entity) =>
         entityMatchesDirection(
           entity,
-          selectedDirectionKey,
+          resolvedDirectionKey,
           directionOptions,
         ),
       ),
-    [lineEntities, selectedDirectionKey, directionOptions],
+    [lineEntities, resolvedDirectionKey, directionOptions],
   );
 
   const selectedStationFeature = useMemo(() => {
@@ -195,7 +234,7 @@ function SubteForecastPage() {
     );
     const style = getSubwayLineStyle(lineCode);
     if (style) {
-      return style.label;
+      return style.label.replace(/^Linea\s+/i, "Línea ");
     }
     return typeof ral === "string" ? ral : null;
   }, [selectedStationFeature]);
@@ -316,38 +355,75 @@ function SubteForecastPage() {
     return orderedEntities[0] ?? null;
   }, [arrivals, resolvedArrivalKey, orderedEntities, selectedEntityKey]);
 
-  const detailStations = useMemo((): SubteDisplayStation[] => {
+  const routeStations = useMemo((): SubteDisplayStation[] => {
     const linea = selectedEntity?.Linea;
-    if (!linea) {
+    if (linea?.Estaciones?.length) {
+      const lineCode = parseSubwayLineCode(linea.Route_Id);
+      return linea.Estaciones.map((station, index) => {
+        const resolved = resolveForecastStation(
+          stationDirectory,
+          station,
+          lineCode,
+        );
+        return {
+          key: `${station.stop_id ?? "stop"}-${index}`,
+          displayName: resolved.displayName || station.stop_name || "Estación",
+          staticId: resolved.staticId,
+          arrivalTime: station.arrival?.time,
+          departureTime: station.departure?.time,
+          arrivalDelay: station.arrival?.delay,
+          departureDelay: station.departure?.delay,
+        };
+      });
+    }
+
+    if (!selectedLine) {
       return [];
     }
-    const lineCode = parseSubwayLineCode(linea.Route_Id);
-    return (linea.Estaciones ?? []).map((station, index) => {
-      const resolved = resolveForecastStation(
-        stationDirectory,
-        station,
-        lineCode,
+
+    const staticStations = stationDirectory.byLine.get(selectedLine) ?? [];
+    return staticStations.map((station) => ({
+      key: `static-${station.staticId}`,
+      displayName: station.name,
+      staticId: station.staticId,
+    }));
+  }, [selectedEntity, selectedLine, stationDirectory]);
+
+  const selectedStationKey = useMemo(() => {
+    if (!selectedStationName && !selectedStationStaticId) {
+      return null;
+    }
+    const match = routeStations.find((station) => {
+      if (
+        selectedStationStaticId &&
+        station.staticId === selectedStationStaticId
+      ) {
+        return true;
+      }
+      return (
+        selectedStationName !== null &&
+        normalizeStationName(station.displayName) ===
+          normalizeStationName(selectedStationName)
       );
-      return {
-        key: `${station.stop_id ?? "stop"}-${index}`,
-        displayName: resolved.displayName,
-        arrivalTime: station.arrival?.time,
-        departureTime: station.departure?.time,
-        arrivalDelay: station.arrival?.delay,
-        departureDelay: station.departure?.delay,
-      };
     });
-  }, [selectedEntity, stationDirectory]);
+    return match?.key ?? null;
+  }, [routeStations, selectedStationName, selectedStationStaticId]);
 
   const selectedLineStyle = getSubwayLineStyle(selectedLine);
   const staticReady = Boolean(network || stations);
+  const layoutRevision =
+    (panelState === "closed" ? 0 : 1) + (panelState === "expanded" ? 2 : 0);
 
   const openPanel = (
-    preferred: SubtePanelState = isMobile ? "summary" : "expanded",
+    preferred: SubtePanelState = "summary",
+    tab: SubtePanelTab = "arrivals",
   ) => {
-    setPanelState(
-      isMobile ? preferred : preferred === "closed" ? "closed" : "expanded",
-    );
+    setPanelTab(tab);
+    if (preferred === "closed") {
+      setPanelState("closed");
+      return;
+    }
+    setPanelState(preferred);
   };
 
   const resetTripSelection = () => {
@@ -363,7 +439,7 @@ function SubteForecastPage() {
       resetTripSelection();
       return next;
     });
-    openPanel(isMobile ? "summary" : "expanded");
+    openPanel("summary", "arrivals");
   };
 
   const handleSelectAllLines = () => {
@@ -373,8 +449,66 @@ function SubteForecastPage() {
     resetTripSelection();
   };
 
-  const effectivePanelState: SubtePanelState =
-    !isMobile && panelState === "summary" ? "expanded" : panelState;
+  const getStationArrivalSummary = useCallback(
+    (
+      stationId: string,
+      line: SubwayLineCode | null,
+    ): StationArrivalSummary | null => {
+      const feature = stations?.features.find((item) => {
+        const id = item.properties?.id;
+        const nam = item.properties?.nam;
+        return (
+          String(id ?? "") === stationId ||
+          (typeof nam === "string" && nam === stationId)
+        );
+      });
+      const stationName =
+        typeof feature?.properties?.nam === "string"
+          ? feature.properties.nam.trim()
+          : stationId;
+      const normalizedName = normalizeStationName(stationName);
+      const referenceTime = data?.headerTimestamp;
+      const candidates = allEntities.filter((entity) =>
+        entityMatchesLine(entity, line),
+      );
+
+      for (const entity of candidates) {
+        const linea = entity.Linea;
+        const lineCode = parseSubwayLineCode(linea?.Route_Id);
+        for (const station of linea?.Estaciones ?? []) {
+          const resolved = resolveForecastStation(
+            stationDirectory,
+            station,
+            lineCode,
+          );
+          if (normalizeStationName(resolved.displayName) !== normalizedName) {
+            continue;
+          }
+          const direction = resolveSubwayDirection(entity, directionOptions);
+          const arrivalTime = station.arrival?.time ?? station.departure?.time;
+          return {
+            available: Boolean(arrivalTime),
+            directionLabel: direction?.label,
+            arrivalLabel: formatArrivalLabel(arrivalTime, referenceTime),
+            delayLabel: formatDelayLabel(
+              station.arrival?.delay ?? station.departure?.delay,
+            ),
+          };
+        }
+      }
+
+      return { available: false };
+    },
+    [
+      allEntities,
+      data?.headerTimestamp,
+      directionOptions,
+      stationDirectory,
+      stations,
+    ],
+  );
+
+  const effectivePanelState: SubtePanelState = panelState;
 
   return (
     <section className="subte-page">
@@ -437,14 +571,13 @@ function SubteForecastPage() {
             stations={stations}
             selectedLine={selectedLine}
             selectedStationId={selectedStationId}
+            layoutRevision={layoutRevision}
+            getStationArrivalSummary={getStationArrivalSummary}
             onSelectLine={(line) => {
               setSelectedLine(line);
               setSelectedStationId(null);
               setSelectedDirectionKey(null);
               resetTripSelection();
-              if (line) {
-                openPanel(isMobile ? "summary" : "expanded");
-              }
             }}
             onSelectStation={(stationId, line) => {
               setSelectedStationId(stationId);
@@ -455,7 +588,21 @@ function SubteForecastPage() {
               } else if (line) {
                 setSelectedLine(line);
               }
-              openPanel(isMobile ? "summary" : "expanded");
+            }}
+            onOpenStationArrivals={(stationId, line) => {
+              setSelectedStationId(stationId);
+              setSelectedArrivalKey(null);
+              if (line) {
+                setSelectedLine(line);
+              }
+              openPanel("summary", "arrivals");
+            }}
+            onOpenLinePanel={(line) => {
+              setSelectedLine(line);
+              setSelectedStationId(null);
+              setSelectedDirectionKey(null);
+              resetTripSelection();
+              openPanel("summary", "arrivals");
             }}
           />
         )}
@@ -464,7 +611,7 @@ function SubteForecastPage() {
           <button
             type="button"
             className="subte-open-panel-btn"
-            onClick={() => openPanel(isMobile ? "summary" : "expanded")}
+            onClick={() => openPanel("summary", "arrivals")}
             aria-label="Abrir próximas llegadas"
           >
             <span className="subte-open-panel-btn-icon" aria-hidden="true">
@@ -488,15 +635,18 @@ function SubteForecastPage() {
           selectedStationName={selectedStationName}
           selectedStationLineLabel={selectedStationLineLabel}
           directions={availableDirections}
-          selectedDirectionKey={selectedDirectionKey}
+          selectedDirectionKey={resolvedDirectionKey}
           selectedDirection={selectedDirection}
+          activeTab={panelTab}
+          onActiveTabChange={setPanelTab}
           onSelectDirection={(key) => {
             setSelectedDirectionKey(key);
             resetTripSelection();
           }}
           arrivals={arrivals}
           selectedArrivalKey={resolvedArrivalKey}
-          detailStations={detailStations}
+          routeStations={routeStations}
+          selectedStationKey={selectedStationKey}
           forecastLoading={loading}
           isRefreshing={isRefreshing}
           forecastError={Boolean(error)}
@@ -513,8 +663,17 @@ function SubteForecastPage() {
               setPanelState("expanded");
             }
           }}
+          onSelectRouteStation={(station) => {
+            if (station.staticId) {
+              setSelectedStationId(station.staticId);
+            } else {
+              setSelectedStationId(station.displayName);
+            }
+            setSelectedArrivalKey(null);
+            setPanelTab("arrivals");
+          }}
           onClose={() => setPanelState("closed")}
-          onMinimize={() => setPanelState(isMobile ? "summary" : "closed")}
+          onMinimize={() => setPanelState("summary")}
           onExpand={() => setPanelState("expanded")}
           onClearStation={() => setSelectedStationId(null)}
         />

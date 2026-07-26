@@ -41,6 +41,7 @@ export interface SubwayDirection {
 export interface SubteDisplayStation {
   key: string;
   displayName: string;
+  staticId?: string;
   arrivalTime?: number;
   departureTime?: number;
   arrivalDelay?: number;

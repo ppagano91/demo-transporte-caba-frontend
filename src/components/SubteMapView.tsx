@@ -1,18 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getSubwayLineColor,
+  getSubwayLineStyle,
   parseSubwayLineCode,
   type SubwayLineCode,
 } from "../constants/subwayLines";
 import type { SubteGeoJsonFeatureCollection } from "../types/subte";
+import { normalizeStationName } from "../utils/resolveStation";
+
+export interface StationArrivalSummary {
+  directionLabel?: string;
+  arrivalLabel?: string;
+  delayLabel?: string;
+  available: boolean;
+}
 
 interface SubteMapViewProps {
   network: SubteGeoJsonFeatureCollection | null;
   stations: SubteGeoJsonFeatureCollection | null;
   selectedLine: SubwayLineCode | null;
   selectedStationId: string | null;
+  layoutRevision?: number;
+  getStationArrivalSummary?: (
+    stationId: string,
+    line: SubwayLineCode | null,
+  ) => StationArrivalSummary | null;
   onSelectLine?: (line: SubwayLineCode | null) => void;
-  onSelectStation?: (stationId: string | null, line: SubwayLineCode | null) => void;
+  onSelectStation?: (
+    stationId: string | null,
+    line: SubwayLineCode | null,
+  ) => void;
+  onOpenStationArrivals?: (
+    stationId: string,
+    line: SubwayLineCode | null,
+  ) => void;
+  onOpenLinePanel?: (line: SubwayLineCode) => void;
 }
 
 interface MapLibreLngLatBoundsLike {
@@ -32,11 +54,24 @@ interface MapLibreMapMouseEvent {
   }>;
 }
 
+interface MapLibrePopup {
+  setLngLat: (lngLat: [number, number]) => MapLibrePopup;
+  setDOMContent: (element: HTMLElement) => MapLibrePopup;
+  addTo: (map: MapLibreMap) => MapLibrePopup;
+  remove: () => void;
+  on: (event: "close" | "open", handler: () => void) => MapLibrePopup;
+}
+
 interface MapLibreMap {
   fitBounds: (
     bounds: MapLibreLngLatBoundsLike | [[number, number], [number, number]],
     options?: { padding?: number; duration?: number; maxZoom?: number },
   ) => void;
+  flyTo: (options: {
+    center: [number, number];
+    zoom?: number;
+    duration?: number;
+  }) => void;
   addSource: (
     id: string,
     source: { type: "geojson"; data: SubteGeoJsonFeatureCollection },
@@ -53,6 +88,7 @@ interface MapLibreMap {
   getLayer: (id: string) => unknown;
   setFilter: (layerId: string, filter: unknown[] | null) => void;
   setPaintProperty: (layerId: string, name: string, value: unknown) => void;
+  resize: () => void;
   on: {
     (event: "load", handler: () => void): void;
     (
@@ -97,13 +133,10 @@ interface MapLibreApi {
   Popup: new (options?: {
     closeButton?: boolean;
     closeOnClick?: boolean;
-  }) => {
-    setLngLat: (lngLat: [number, number]) => {
-      setHTML: (html: string) => {
-        addTo: (map: MapLibreMap) => void;
-      };
-    };
-  };
+    className?: string;
+    maxWidth?: string;
+    offset?: number;
+  }) => MapLibrePopup;
 }
 
 const MAP_STYLE_URL = {
@@ -138,13 +171,6 @@ const STATIONS_SOURCE_ID = "subte-stations";
 const NETWORK_LAYER_ID = "subte-network-line";
 const STATIONS_LAYER_ID = "subte-stations-circle";
 const STATIONS_SELECTED_LAYER_ID = "subte-stations-selected";
-
-/**
- * El GeoJSON estático de red solo trae id/fna/gna/nam/sag por tramo, sin
- * direction_id ni separación confiable por sentido. Por ahora se muestra la
- * geometría completa de la línea. Si en el futuro hay capas por sentido,
- * conviene filtrar/resaltar por una propiedad explícita (no por heurísticas).
- */
 
 const EMPTY_COLLECTION: SubteGeoJsonFeatureCollection = {
   type: "FeatureCollection",
@@ -201,15 +227,6 @@ const loadMapLibreAssets = (): Promise<void> => {
   });
 
   return mapLibreLoadPromise;
-};
-
-const escapeHtml = (value: string): string => {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 };
 
 const lineColorExpression = [
@@ -342,23 +359,247 @@ const stationIdOf = (properties: Record<string, unknown> | null | undefined) => 
   return null;
 };
 
+const lineCodeFromStationProperties = (
+  properties: Record<string, unknown> | null | undefined,
+): SubwayLineCode | null => {
+  if (!properties) {
+    return null;
+  }
+  return parseSubwayLineCode(
+    typeof properties.lineCode === "string"
+      ? properties.lineCode
+      : typeof properties.ral === "string"
+        ? properties.ral
+        : null,
+  );
+};
+
+const findCombinationLines = (
+  stations: SubteGeoJsonFeatureCollection | null,
+  stationName: string,
+  primaryLine: SubwayLineCode | null,
+): SubwayLineCode[] => {
+  if (!stations) {
+    return primaryLine ? [primaryLine] : [];
+  }
+
+  const normalized = normalizeStationName(stationName);
+  if (!normalized) {
+    return primaryLine ? [primaryLine] : [];
+  }
+
+  const codes = new Set<SubwayLineCode>();
+  if (primaryLine) {
+    codes.add(primaryLine);
+  }
+
+  for (const feature of stations.features) {
+    const name =
+      typeof feature.properties?.nam === "string"
+        ? feature.properties.nam
+        : "";
+    if (normalizeStationName(name) !== normalized) {
+      continue;
+    }
+    const code = lineCodeFromStationProperties(feature.properties);
+    if (code) {
+      codes.add(code);
+    }
+  }
+
+  return Array.from(codes).sort();
+};
+
+const appendText = (parent: HTMLElement, tag: string, text: string, className?: string) => {
+  const element = document.createElement(tag);
+  if (className) {
+    element.className = className;
+  }
+  element.textContent = text;
+  parent.appendChild(element);
+  return element;
+};
+
+const buildStationPopupContent = ({
+  stationName,
+  lineCodes,
+  arrivalSummary,
+  onOpenArrivals,
+}: {
+  stationName: string;
+  lineCodes: SubwayLineCode[];
+  arrivalSummary: StationArrivalSummary | null;
+  onOpenArrivals: () => void;
+}): HTMLElement => {
+  const root = document.createElement("div");
+  root.className = "subte-map-popup";
+
+  const header = document.createElement("div");
+  header.className = "subte-map-popup-header";
+
+  const badges = document.createElement("div");
+  badges.className = "subte-map-popup-badges";
+  for (const code of lineCodes) {
+    const style = getSubwayLineStyle(code);
+    if (!style) {
+      continue;
+    }
+    const badge = document.createElement("span");
+    badge.className = "subte-line-badge subte-line-badge-sm";
+    badge.style.backgroundColor = style.color;
+    badge.style.color = style.textColor;
+    badge.textContent = style.code;
+    badges.appendChild(badge);
+  }
+  header.appendChild(badges);
+  appendText(header, "strong", stationName, "subte-map-popup-title");
+  root.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "subte-map-popup-body";
+
+  if (lineCodes.length === 1) {
+    const style = getSubwayLineStyle(lineCodes[0]);
+    if (style) {
+      appendText(
+        body,
+        "p",
+        style.label.replace(/^Linea\s+/i, "Línea "),
+        "subte-map-popup-line",
+      );
+    }
+  } else if (lineCodes.length > 1) {
+    appendText(
+      body,
+      "p",
+      `Combinación entre líneas ${lineCodes.join(" y ")}`,
+      "subte-map-popup-combo",
+    );
+  }
+
+  if (arrivalSummary?.directionLabel) {
+    appendText(
+      body,
+      "p",
+      arrivalSummary.directionLabel.includes("→")
+        ? `Hacia ${arrivalSummary.directionLabel.split("→").pop()?.trim() ?? arrivalSummary.directionLabel}`
+        : arrivalSummary.directionLabel,
+      "subte-map-popup-direction",
+    );
+  }
+
+  if (arrivalSummary?.available && arrivalSummary.arrivalLabel) {
+    const status = document.createElement("p");
+    status.className = "subte-map-popup-arrival";
+    status.textContent = `Próxima llegada: ${arrivalSummary.arrivalLabel}`;
+    if (arrivalSummary.delayLabel) {
+      const delay = document.createElement("span");
+      delay.className = "subte-map-popup-delay";
+      delay.textContent = arrivalSummary.delayLabel;
+      status.appendChild(document.createTextNode(" · "));
+      status.appendChild(delay);
+    }
+    body.appendChild(status);
+  } else {
+    appendText(
+      body,
+      "p",
+      "No hay próximas llegadas disponibles.",
+      "subte-map-popup-empty",
+    );
+  }
+
+  root.appendChild(body);
+
+  const action = document.createElement("button");
+  action.type = "button";
+  action.className = "subte-map-popup-action";
+  action.textContent = "Ver próximas llegadas";
+  action.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onOpenArrivals();
+  });
+  root.appendChild(action);
+
+  return root;
+};
+
+const buildLinePopupContent = ({
+  lineCode,
+  onOpenLine,
+}: {
+  lineCode: SubwayLineCode;
+  onOpenLine: () => void;
+}): HTMLElement => {
+  const style = getSubwayLineStyle(lineCode);
+  const root = document.createElement("div");
+  root.className = "subte-map-popup subte-map-popup-line-only";
+
+  const header = document.createElement("div");
+  header.className = "subte-map-popup-header";
+
+  if (style) {
+    const badge = document.createElement("span");
+    badge.className = "subte-line-badge subte-line-badge-sm";
+    badge.style.backgroundColor = style.color;
+    badge.style.color = style.textColor;
+    badge.textContent = style.code;
+    header.appendChild(badge);
+    appendText(
+      header,
+      "strong",
+      style.label.replace(/^Linea\s+/i, "Línea "),
+      "subte-map-popup-title",
+    );
+  }
+
+  root.appendChild(header);
+
+  const action = document.createElement("button");
+  action.type = "button";
+  action.className = "subte-map-popup-action";
+  action.textContent = "Ver línea";
+  action.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onOpenLine();
+  });
+  root.appendChild(action);
+
+  return root;
+};
+
 function SubteMapView({
   network,
   stations,
   selectedLine,
   selectedStationId,
+  layoutRevision = 0,
+  getStationArrivalSummary,
   onSelectLine,
   onSelectStation,
+  onOpenStationArrivals,
+  onOpenLinePanel,
 }: SubteMapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const popupRef = useRef<MapLibrePopup | null>(null);
+  const stationsRef = useRef(stations);
+  const getArrivalSummaryRef = useRef(getStationArrivalSummary);
   const onSelectLineRef = useRef(onSelectLine);
   const onSelectStationRef = useRef(onSelectStation);
+  const onOpenStationArrivalsRef = useRef(onOpenStationArrivals);
+  const onOpenLinePanelRef = useRef(onOpenLinePanel);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
 
+  stationsRef.current = stations;
+  getArrivalSummaryRef.current = getStationArrivalSummary;
   onSelectLineRef.current = onSelectLine;
   onSelectStationRef.current = onSelectStation;
+  onOpenStationArrivalsRef.current = onOpenStationArrivals;
+  onOpenLinePanelRef.current = onOpenLinePanel;
 
   const hasGeometry = useMemo(() => {
     return (
@@ -394,6 +635,11 @@ function SubteMapView({
           zoom: 11.4,
         });
         mapRef.current = mapInstance;
+
+        const closeActivePopup = () => {
+          popupRef.current?.remove();
+          popupRef.current = null;
+        };
 
         const handleLoad = () => {
           if (!mapInstance) {
@@ -453,42 +699,56 @@ function SubteMapView({
             const feature = event.features?.[0];
             const properties = feature?.properties ?? {};
             const stationId = stationIdOf(properties);
-            const lineCode = parseSubwayLineCode(
-              typeof properties.lineCode === "string"
-                ? properties.lineCode
-                : typeof properties.ral === "string"
-                  ? properties.ral
-                  : null,
-            );
+            const lineCode = lineCodeFromStationProperties(properties);
+            const name =
+              typeof properties.nam === "string" && properties.nam.trim()
+                ? properties.nam.trim()
+                : "Estación";
 
             onSelectStationRef.current?.(stationId, lineCode);
 
-            const name =
-              typeof properties.nam === "string" ? properties.nam : "Estacion";
-            const lineLabel =
-              typeof properties.ral === "string" ? properties.ral : "-";
-            const corridor =
-              typeof properties.cab === "string" ? properties.cab : "-";
-
             const maplibreApi = getMapLibre();
-            if (!maplibreApi || !mapInstance) {
+            if (!maplibreApi || !mapInstance || !stationId) {
               return;
             }
 
-            new maplibreApi.Popup({ closeButton: true, closeOnClick: true })
+            closeActivePopup();
+
+            const lineCodes = findCombinationLines(
+              stationsRef.current,
+              name,
+              lineCode,
+            );
+            const arrivalSummary =
+              getArrivalSummaryRef.current?.(stationId, lineCode) ?? null;
+
+            const content = buildStationPopupContent({
+              stationName: name,
+              lineCodes,
+              arrivalSummary,
+              onOpenArrivals: () => {
+                onOpenStationArrivalsRef.current?.(stationId, lineCode);
+                closeActivePopup();
+              },
+            });
+
+            const popup = new maplibreApi.Popup({
+              closeButton: true,
+              closeOnClick: true,
+              className: "subte-maplibre-popup",
+              maxWidth: "320px",
+              offset: 16,
+            })
               .setLngLat([event.lngLat.lng, event.lngLat.lat])
-              .setHTML(
-                `<div class="subte-map-popup">
-                  <strong>${escapeHtml(name)}</strong>
-                  <div>${escapeHtml(lineLabel)}</div>
-                  ${
-                    corridor && corridor !== "-"
-                      ? `<div>${escapeHtml(corridor)}</div>`
-                      : ""
-                  }
-                </div>`,
-              )
+              .setDOMContent(content)
               .addTo(mapInstance);
+
+            popupRef.current = popup;
+            popup.on("close", () => {
+              if (popupRef.current === popup) {
+                popupRef.current = null;
+              }
+            });
           };
 
           const handleNetworkClick = (event: MapLibreMapMouseEvent) => {
@@ -503,10 +763,45 @@ function SubteMapView({
                     ? properties.nam
                     : null,
             );
-            if (lineCode) {
-              onSelectLineRef.current?.(lineCode);
-              onSelectStationRef.current?.(null, lineCode);
+            if (!lineCode) {
+              return;
             }
+
+            onSelectLineRef.current?.(lineCode);
+            onSelectStationRef.current?.(null, lineCode);
+
+            const maplibreApi = getMapLibre();
+            if (!maplibreApi || !mapInstance) {
+              return;
+            }
+
+            closeActivePopup();
+
+            const content = buildLinePopupContent({
+              lineCode,
+              onOpenLine: () => {
+                onOpenLinePanelRef.current?.(lineCode);
+                closeActivePopup();
+              },
+            });
+
+            const popup = new maplibreApi.Popup({
+              closeButton: true,
+              closeOnClick: true,
+              className: "subte-maplibre-popup",
+              maxWidth: "280px",
+              offset: 12,
+            })
+              .setLngLat([event.lngLat.lng, event.lngLat.lat])
+              .setDOMContent(content)
+              .addTo(mapInstance);
+
+            popupRef.current = popup;
+            popup.on("close", () => {
+              if (popupRef.current === popup) {
+                popupRef.current = null;
+              }
+            });
           };
 
           mapInstance.on("click", STATIONS_LAYER_ID, handleStationClick);
@@ -544,6 +839,8 @@ function SubteMapView({
     return () => {
       cancelled = true;
       setMapReady(false);
+      popupRef.current?.remove();
+      popupRef.current = null;
       if (mapInstance) {
         mapInstance.remove();
       }
@@ -597,7 +894,36 @@ function SubteMapView({
           ]
         : ["==", ["get", "id"], ""],
     );
-  }, [mapReady, selectedLine, selectedStationId]);
+
+    if (!selectedStationId || !stations) {
+      return;
+    }
+
+    const feature = stations.features.find((item) => {
+      const id = item.properties?.id;
+      const nam = item.properties?.nam;
+      return (
+        String(id ?? "") === selectedStationId ||
+        (typeof nam === "string" && nam === selectedStationId)
+      );
+    });
+
+    const geometry = feature?.geometry;
+    if (
+      geometry &&
+      typeof geometry === "object" &&
+      geometry.type === "Point" &&
+      Array.isArray(geometry.coordinates) &&
+      typeof geometry.coordinates[0] === "number" &&
+      typeof geometry.coordinates[1] === "number"
+    ) {
+      map.flyTo({
+        center: [geometry.coordinates[0], geometry.coordinates[1]],
+        zoom: 14,
+        duration: 450,
+      });
+    }
+  }, [mapReady, selectedLine, selectedStationId, stations]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -606,6 +932,30 @@ function SubteMapView({
     }
     fitToFeatures(map, [network, stations], selectedLine);
   }, [mapReady, network, stations, selectedLine]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const container = containerRef.current;
+    if (!map || !mapReady || !container) {
+      return;
+    }
+
+    const resize = () => {
+      map.resize();
+    };
+
+    resize();
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      resize();
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [mapReady, layoutRevision]);
 
   return (
     <div className="subte-map-shell">
