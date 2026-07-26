@@ -1,13 +1,28 @@
+import { parseSubwayLineCode } from "../constants/subwayLines";
 import type {
   SubteEntityForecast,
   SubteForecastResponse,
+  SubteGeoJsonFeature,
+  SubteGeoJsonFeatureCollection,
   SubteLineaForecast,
   SubteStationForecast,
 } from "../types/subte";
 
+const SUBTE_API_BASE_URL =
+  import.meta.env.VITE_BACKEND_SUBTE_API_BASE ??
+  "http://localhost:8000/api/subtes";
+
 const SUBTE_FORECAST_API_BASE_URL =
   import.meta.env.VITE_BACKEND_SUBTE_FORECAST_API_BASE ??
-  "http://localhost:8000/api/subtes/forecast";
+  `${SUBTE_API_BASE_URL}/forecast`;
+
+const SUBTE_NETWORK_API_BASE_URL =
+  import.meta.env.VITE_BACKEND_SUBTE_NETWORK_API_BASE ??
+  `${SUBTE_API_BASE_URL}/network`;
+
+const SUBTE_STATIONS_API_BASE_URL =
+  import.meta.env.VITE_BACKEND_SUBTE_STATIONS_API_BASE ??
+  `${SUBTE_API_BASE_URL}/stations`;
 
 const toRecord = (value: unknown): Record<string, unknown> | undefined => {
   if (value && typeof value === "object") {
@@ -129,3 +144,114 @@ export const fetchSubteForecast = async (): Promise<SubteForecastResponse> => {
   const payload: unknown = await response.json();
   return parseSubteForecastResponse(payload);
 };
+
+const toStringProp = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return undefined;
+};
+
+const enrichFeatureLineCode = (
+  feature: SubteGeoJsonFeature,
+  lineHints: Array<string | undefined>,
+): SubteGeoJsonFeature => {
+  const properties = feature.properties ?? {};
+  const lineCode =
+    parseSubwayLineCode(lineHints.find(Boolean) ?? null) ?? null;
+
+  return {
+    ...feature,
+    properties: {
+      ...properties,
+      lineCode,
+    },
+  };
+};
+
+export const parseSubteGeoJsonFeatureCollection = (
+  payload: unknown,
+  kind: "network" | "stations",
+): SubteGeoJsonFeatureCollection => {
+  const root = toRecord(payload);
+  if (!root || root.type !== "FeatureCollection") {
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  const rawFeatures = Array.isArray(root.features) ? root.features : [];
+  const features: SubteGeoJsonFeature[] = [];
+
+  for (const item of rawFeatures) {
+    const feature = toRecord(item);
+    if (!feature || feature.type !== "Feature") {
+      continue;
+    }
+
+    const geometry = feature.geometry;
+    if (!geometry || typeof geometry !== "object") {
+      continue;
+    }
+
+    const properties = toRecord(feature.properties) ?? {};
+    const baseFeature: SubteGeoJsonFeature = {
+      type: "Feature",
+      geometry: geometry as SubteGeoJsonFeature["geometry"],
+      properties,
+      id:
+        typeof feature.id === "string" || typeof feature.id === "number"
+          ? feature.id
+          : undefined,
+    };
+
+    if (kind === "network") {
+      features.push(
+        enrichFeatureLineCode(baseFeature, [
+          toStringProp(properties.fna),
+          toStringProp(properties.nam),
+        ]),
+      );
+      continue;
+    }
+
+    features.push(
+      enrichFeatureLineCode(baseFeature, [
+        toStringProp(properties.ral),
+        toStringProp(properties.fna),
+        toStringProp(properties.nam),
+      ]),
+    );
+  }
+
+  return {
+    type: "FeatureCollection",
+    features,
+  };
+};
+
+const fetchSubteGeoJson = async (
+  url: string,
+  kind: "network" | "stations",
+): Promise<SubteGeoJsonFeatureCollection> => {
+  const response = await fetch(url, { cache: "force-cache" });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+  }
+
+  const payload: unknown = await response.json();
+  return parseSubteGeoJsonFeatureCollection(payload, kind);
+};
+
+export const fetchSubteNetwork =
+  async (): Promise<SubteGeoJsonFeatureCollection> => {
+    return fetchSubteGeoJson(SUBTE_NETWORK_API_BASE_URL, "network");
+  };
+
+export const fetchSubteStations =
+  async (): Promise<SubteGeoJsonFeatureCollection> => {
+    return fetchSubteGeoJson(SUBTE_STATIONS_API_BASE_URL, "stations");
+  };

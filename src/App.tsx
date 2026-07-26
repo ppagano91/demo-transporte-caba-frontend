@@ -13,8 +13,8 @@ const PAGE_META: Record<AppPage, { title: string; description: string }> = {
     description: "Visualizacion en tiempo real de posiciones de vehiculos.",
   },
   subtes: {
-    title: "Subtes GTFS",
-    description: "Consulta de forecastGTFS desde el backend local.",
+    title: "Subtes",
+    description: "Consultá la red y las próximas llegadas de las líneas de subte.",
   },
   ecobici: {
     title: "Ecobici",
@@ -103,7 +103,7 @@ function App() {
             className={activePage === "subtes" ? "nav-button active" : "nav-button"}
             onClick={() => openPage("subtes")}
           >
-            Subtes GTFS
+            Subtes
           </button>
           <button
             className={activePage === "ecobici" ? "nav-button active" : "nav-button"}
