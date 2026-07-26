@@ -1,9 +1,9 @@
-import type { ReactNode } from "react";
+import type { ReactNode, SVGProps } from "react";
 import {
   getSubwayLineStyle,
   type SubwayLineCode,
 } from "../constants/subwayLines";
-import type { SubteStationForecast } from "../types/subte";
+import type { SubteDisplayStation, SubwayDirection } from "../types/subte";
 
 export type SubtePanelState = "closed" | "summary" | "expanded";
 
@@ -14,6 +14,10 @@ export interface SubteArrivalItem {
   stationName: string;
   stopId?: string;
   directionId?: number;
+  directionKey?: string;
+  directionLabel?: string;
+  originName?: string;
+  destinationName?: string;
   arrivalTime?: number;
   departureTime?: number;
   arrivalDelay?: number;
@@ -26,13 +30,19 @@ interface SubteInfoPanelProps {
   selectedLine: SubwayLineCode | null;
   selectedStationName: string | null;
   selectedStationLineLabel: string | null;
+  directions: SubwayDirection[];
+  selectedDirectionKey: string | null;
+  selectedDirection: SubwayDirection | null;
+  onSelectDirection: (key: string | null) => void;
   arrivals: SubteArrivalItem[];
   selectedArrivalKey: string | null;
-  detailStations: SubteStationForecast[];
+  detailStations: SubteDisplayStation[];
   forecastLoading: boolean;
+  isRefreshing: boolean;
   forecastError: boolean;
   forecastEmpty: boolean;
   lastUpdated: Date | null;
+  onRefresh: () => void;
   onSelectArrival: (key: string) => void;
   onClose: () => void;
   onMinimize: () => void;
@@ -99,17 +109,94 @@ const formatLastUpdate = (value: Date | null): string => {
   }).format(value);
 };
 
-const formatDirection = (directionId?: number): string | null => {
-  if (directionId === undefined || directionId === null) {
-    return null;
-  }
-  return `Sentido ${directionId}`;
-};
-
 const lineTitle = (selectedLine: SubwayLineCode | null): string => {
   const style = getSubwayLineStyle(selectedLine);
   return style ? style.label : "Todas las líneas";
 };
+
+function RefreshIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M21 12a9 9 0 1 1-2.1-5.7" />
+      <polyline points="21 3 21 9 15 9" />
+    </svg>
+  );
+}
+
+function ExpandIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <polyline points="15 3 21 3 21 9" />
+      <polyline points="9 21 3 21 3 15" />
+      <line x1="21" y1="3" x2="14" y2="10" />
+      <line x1="3" y1="21" x2="10" y2="14" />
+    </svg>
+  );
+}
+
+function MinimizeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <polyline points="4 14 10 14 10 20" />
+      <polyline points="20 10 14 10 14 4" />
+      <line x1="14" y1="10" x2="21" y2="3" />
+      <line x1="3" y1="21" x2="10" y2="14" />
+    </svg>
+  );
+}
+
+function CloseIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
 
 function EmptyMessage({ children }: { children: ReactNode }) {
   return <p className="subte-panel-empty">{children}</p>;
@@ -127,7 +214,6 @@ function ArrivalCard({
   onSelect: () => void;
 }) {
   const lineStyle = getSubwayLineStyle(item.lineCode);
-  const direction = formatDirection(item.directionId);
 
   return (
     <button
@@ -155,7 +241,7 @@ function ArrivalCard({
       </div>
       {!compact ? (
         <div className="subte-arrival-card-meta">
-          {direction ? <span>{direction}</span> : null}
+          {item.directionLabel ? <span>{item.directionLabel}</span> : null}
           <span
             className={`subte-delay-badge ${getDelayTone(item.arrivalDelay ?? item.departureDelay)}`}
           >
@@ -167,19 +253,104 @@ function ArrivalCard({
   );
 }
 
+function DirectionSelector({
+  directions,
+  selectedDirectionKey,
+  onSelectDirection,
+  isMobile,
+}: {
+  directions: SubwayDirection[];
+  selectedDirectionKey: string | null;
+  onSelectDirection: (key: string | null) => void;
+  isMobile: boolean;
+}) {
+  if (directions.length < 2) {
+    return null;
+  }
+
+  const useSelect = isMobile && directions.some((d) => d.label.length > 28);
+
+  if (useSelect) {
+    return (
+      <div className="subte-direction-selector">
+        <label className="subte-section-kicker" htmlFor="subte-direction-select">
+          Sentido
+        </label>
+        <select
+          id="subte-direction-select"
+          className="subte-direction-select"
+          value={selectedDirectionKey ?? ""}
+          aria-label="Sentido de circulación"
+          onChange={(event) => {
+            const value = event.target.value;
+            onSelectDirection(value.length > 0 ? value : null);
+          }}
+        >
+          <option value="">Ambos</option>
+          {directions.map((direction) => (
+            <option key={direction.key} value={direction.key}>
+              {direction.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="subte-direction-selector"
+      role="group"
+      aria-label="Sentido de circulación"
+    >
+      <p className="subte-section-kicker">Sentido</p>
+      <div className="subte-direction-options">
+        <button
+          type="button"
+          className={`subte-direction-chip ${selectedDirectionKey === null ? "active" : ""}`}
+          aria-pressed={selectedDirectionKey === null}
+          onClick={() => onSelectDirection(null)}
+        >
+          Ambos
+        </button>
+        {directions.map((direction) => {
+          const isActive = selectedDirectionKey === direction.key;
+          return (
+            <button
+              key={direction.key}
+              type="button"
+              className={`subte-direction-chip ${isActive ? "active" : ""}`}
+              aria-pressed={isActive}
+              onClick={() => onSelectDirection(direction.key)}
+            >
+              {direction.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SubteInfoPanel({
   state,
   isMobile,
   selectedLine,
   selectedStationName,
   selectedStationLineLabel,
+  directions,
+  selectedDirectionKey,
+  selectedDirection,
+  onSelectDirection,
   arrivals,
   selectedArrivalKey,
   detailStations,
   forecastLoading,
+  isRefreshing,
   forecastError,
   forecastEmpty,
   lastUpdated,
+  onRefresh,
   onSelectArrival,
   onClose,
   onMinimize,
@@ -192,6 +363,14 @@ function SubteInfoPanel({
   const isSummary = state === "summary";
   const isExpanded = state === "expanded";
   const lastUpdateLabel = formatLastUpdate(lastUpdated);
+  const refreshBusy = forecastLoading || isRefreshing;
+  const showDirectionSelector = Boolean(selectedLine) && directions.length >= 2;
+
+  const directionSummaryLabel = selectedDirection
+    ? selectedDirection.label
+    : selectedLine && directions.length >= 2
+      ? "Ambos sentidos"
+      : directions[0]?.label ?? null;
 
   const statusMessage = (() => {
     if (forecastLoading) {
@@ -254,31 +433,34 @@ function SubteInfoPanel({
 
           <div className="subte-info-panel-header-row">
             <div className="subte-info-panel-heading">
-              <p className="subte-section-kicker">Próximas llegadas</p>
-              <h2>{lineTitle(selectedLine)}</h2>
+              <p className="subte-section-kicker">Información de la línea</p>
+              <div className="subte-info-panel-title-row">
+                {lineStyle ? (
+                  <span
+                    className="subte-line-badge"
+                    style={{
+                      backgroundColor: lineStyle.color,
+                      color: lineStyle.textColor,
+                    }}
+                    aria-hidden="true"
+                  >
+                    {lineStyle.code}
+                  </span>
+                ) : null}
+                <h2>{lineTitle(selectedLine)}</h2>
+              </div>
             </div>
 
             <div className="subte-info-panel-actions">
-              {lineStyle ? (
-                <span
-                  className="subte-line-badge"
-                  style={{
-                    backgroundColor: lineStyle.color,
-                    color: lineStyle.textColor,
-                  }}
-                >
-                  {lineStyle.code}
-                </span>
-              ) : null}
-
               {isMobile && isSummary ? (
                 <button
                   type="button"
                   className="subte-panel-icon-btn"
                   onClick={onExpand}
                   aria-label="Expandir panel"
+                  title="Expandir"
                 >
-                  Expandir
+                  <ExpandIcon />
                 </button>
               ) : null}
 
@@ -287,25 +469,70 @@ function SubteInfoPanel({
                   type="button"
                   className="subte-panel-icon-btn"
                   onClick={onMinimize}
-                  aria-label="Minimizar panel"
+                  aria-label="Resumir panel"
+                  title="Resumir"
                 >
-                  Resumir
+                  <MinimizeIcon />
                 </button>
               ) : null}
 
               <button
                 type="button"
+                className={`subte-panel-icon-btn ${refreshBusy ? "is-busy" : ""}`}
+                onClick={onRefresh}
+                disabled={refreshBusy}
+                aria-label="Actualizar información"
+                title="Actualizar información"
+              >
+                <RefreshIcon className={refreshBusy ? "is-spinning" : undefined} />
+              </button>
+
+              <button
+                type="button"
                 className="subte-panel-icon-btn"
                 onClick={onClose}
-                aria-label="Cerrar panel de información"
+                aria-label="Cerrar panel"
+                title="Cerrar"
               >
-                Cerrar
+                <CloseIcon />
               </button>
             </div>
           </div>
         </header>
 
         <div className="subte-info-panel-body">
+          {showDirectionSelector ? (
+            <DirectionSelector
+              directions={directions}
+              selectedDirectionKey={selectedDirectionKey}
+              onSelectDirection={onSelectDirection}
+              isMobile={isMobile}
+            />
+          ) : null}
+
+          {selectedLine ? (
+            <div className="subte-line-summary" aria-label="Resumen de la línea">
+              {directionSummaryLabel ? (
+                <p>
+                  <span className="subte-summary-label">Sentido</span>
+                  <strong>{directionSummaryLabel}</strong>
+                </p>
+              ) : null}
+              {selectedDirection?.originName ? (
+                <p>
+                  <span className="subte-summary-label">Origen</span>
+                  <strong>{selectedDirection.originName}</strong>
+                </p>
+              ) : null}
+              {selectedDirection?.destinationName ? (
+                <p>
+                  <span className="subte-summary-label">Destino</span>
+                  <strong>{selectedDirection.destinationName}</strong>
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           {selectedStationName ? (
             <div className="subte-selected-station">
               <p className="subte-section-kicker">Estación</p>
@@ -378,34 +605,31 @@ function SubteInfoPanel({
                   aria-label="Detalle del recorrido"
                 >
                   <div className="subte-panel-section-header">
-                    <h3>Detalle del recorrido</h3>
+                    <h3>Próximas estaciones</h3>
                   </div>
 
                   <div className="subte-arrival-list subte-detail-cards is-mobile-only">
-                    {detailStations.map((station, index) => (
-                      <div
-                        key={`${station.stop_id ?? "stop"}-${index}`}
-                        className="subte-detail-card"
-                      >
-                        <strong>{station.stop_name ?? "Estación"}</strong>
+                    {detailStations.map((station) => (
+                      <div key={station.key} className="subte-detail-card">
+                        <strong>{station.displayName}</strong>
                         <div className="subte-detail-card-row">
                           <span>
-                            Llegada {formatTimeOnly(station.arrival?.time)}
+                            Llegada {formatTimeOnly(station.arrivalTime)}
                           </span>
                           <span
-                            className={`subte-delay-badge ${getDelayTone(station.arrival?.delay)}`}
+                            className={`subte-delay-badge ${getDelayTone(station.arrivalDelay)}`}
                           >
-                            {formatDelay(station.arrival?.delay)}
+                            {formatDelay(station.arrivalDelay)}
                           </span>
                         </div>
                         <div className="subte-detail-card-row">
                           <span>
-                            Salida {formatTimeOnly(station.departure?.time)}
+                            Salida {formatTimeOnly(station.departureTime)}
                           </span>
                           <span
-                            className={`subte-delay-badge ${getDelayTone(station.departure?.delay)}`}
+                            className={`subte-delay-badge ${getDelayTone(station.departureDelay)}`}
                           >
-                            {formatDelay(station.departure?.delay)}
+                            {formatDelay(station.departureDelay)}
                           </span>
                         </div>
                       </div>
@@ -423,22 +647,20 @@ function SubteInfoPanel({
                         </tr>
                       </thead>
                       <tbody>
-                        {detailStations.map((station, index) => (
-                          <tr
-                            key={`${station.stop_id ?? "stop"}-${index}`}
-                          >
+                        {detailStations.map((station) => (
+                          <tr key={station.key}>
                             <td className="subte-stop-name">
-                              {station.stop_name ?? "-"}
+                              {station.displayName}
                             </td>
-                            <td>{formatTimeOnly(station.arrival?.time)}</td>
+                            <td>{formatTimeOnly(station.arrivalTime)}</td>
                             <td>
                               <span
-                                className={`subte-delay-badge ${getDelayTone(station.arrival?.delay)}`}
+                                className={`subte-delay-badge ${getDelayTone(station.arrivalDelay)}`}
                               >
-                                {formatDelay(station.arrival?.delay)}
+                                {formatDelay(station.arrivalDelay)}
                               </span>
                             </td>
-                            <td>{formatTimeOnly(station.departure?.time)}</td>
+                            <td>{formatTimeOnly(station.departureTime)}</td>
                           </tr>
                         ))}
                       </tbody>

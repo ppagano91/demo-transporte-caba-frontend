@@ -24,6 +24,29 @@ export interface SubteEntityForecast {
   Linea?: SubteLineaForecast;
 }
 
+export interface SubwayDirection {
+  key: string;
+  lineCode: string;
+  originStopId?: string;
+  originName?: string;
+  destinationStopId?: string;
+  destinationName?: string;
+  directionId?: number | string;
+  label: string;
+  /** True when label is a neutral fallback (Sentido 1 / Sentido 2). */
+  labelIsFallback?: boolean;
+  fallbackReason?: string;
+}
+
+export interface SubteDisplayStation {
+  key: string;
+  displayName: string;
+  arrivalTime?: number;
+  departureTime?: number;
+  arrivalDelay?: number;
+  departureDelay?: number;
+}
+
 export interface SubteForecastResponse {
   headerTimestamp?: number;
   entities: SubteEntityForecast[];

@@ -139,6 +139,13 @@ const NETWORK_LAYER_ID = "subte-network-line";
 const STATIONS_LAYER_ID = "subte-stations-circle";
 const STATIONS_SELECTED_LAYER_ID = "subte-stations-selected";
 
+/**
+ * El GeoJSON estático de red solo trae id/fna/gna/nam/sag por tramo, sin
+ * direction_id ni separación confiable por sentido. Por ahora se muestra la
+ * geometría completa de la línea. Si en el futuro hay capas por sentido,
+ * conviene filtrar/resaltar por una propiedad explícita (no por heurísticas).
+ */
+
 const EMPTY_COLLECTION: SubteGeoJsonFeatureCollection = {
   type: "FeatureCollection",
   features: [],

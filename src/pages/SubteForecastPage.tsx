@@ -12,9 +12,20 @@ import {
 } from "../constants/subwayLines";
 import { useSubteForecast } from "../hooks/useSubteForecast";
 import { useSubteStaticData } from "../hooks/useSubteStaticData";
-import type { SubteEntityForecast } from "../types/subte";
+import type { SubteDisplayStation, SubteEntityForecast } from "../types/subte";
+import {
+  buildStationDirectory,
+  forecastStationMatchesSelection,
+  resolveForecastStation,
+} from "../utils/resolveStation";
+import {
+  entityMatchesDirection,
+  listSubwayDirections,
+  resolveSubwayDirection,
+} from "../utils/subwayDirection";
 
 const MOBILE_BREAKPOINT_PX = 900;
+const FORECAST_REFRESH_INTERVAL_MS = 15000;
 
 const entityKey = (entity: SubteEntityForecast, index: number): string => {
   return entity.ID ?? entity.Linea?.Trip_Id ?? `entity-${index}`;
@@ -28,10 +39,6 @@ const entityMatchesLine = (
     return true;
   }
   return parseSubwayLineCode(entity.Linea?.Route_Id) === line;
-};
-
-const normalizeName = (value: string | null | undefined): string => {
-  return (value ?? "").trim().toLowerCase();
 };
 
 const useIsMobile = (breakpointPx: number): boolean => {
@@ -55,8 +62,6 @@ const useIsMobile = (breakpointPx: number): boolean => {
 
 function SubteForecastPage() {
   const isMobile = useIsMobile(MOBILE_BREAKPOINT_PX);
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-  const [refreshIntervalMs, setRefreshIntervalMs] = useState(15000);
   const [panelState, setPanelState] = useState<SubtePanelState>("closed");
   const [selectedEntityKey, setSelectedEntityKey] = useState<string | null>(
     null,
@@ -65,14 +70,17 @@ function SubteForecastPage() {
     null,
   );
   const [selectedLine, setSelectedLine] = useState<SubwayLineCode | null>(null);
+  const [selectedDirectionKey, setSelectedDirectionKey] = useState<
+    string | null
+  >(null);
   const [selectedStationId, setSelectedStationId] = useState<string | null>(
     null,
   );
 
   const { data, loading, error, empty, isRefreshing, lastUpdated, refreshNow } =
     useSubteForecast({
-      refreshIntervalMs,
-      autoRefreshEnabled,
+      refreshIntervalMs: FORECAST_REFRESH_INTERVAL_MS,
+      autoRefreshEnabled: true,
     });
 
   const {
@@ -83,12 +91,65 @@ function SubteForecastPage() {
     stationsError,
   } = useSubteStaticData();
 
+  const stationDirectory = useMemo(
+    () => buildStationDirectory(stations),
+    [stations],
+  );
+
+  const directionOptions = useMemo(
+    () => ({ directory: stationDirectory }),
+    [stationDirectory],
+  );
+
   const allEntities = useMemo(() => data?.entities ?? [], [data]);
 
-  const orderedEntities = useMemo(
+  const lineEntities = useMemo(
     () =>
       allEntities.filter((entity) => entityMatchesLine(entity, selectedLine)),
     [allEntities, selectedLine],
+  );
+
+  const availableDirections = useMemo(() => {
+    if (!selectedLine) {
+      return [];
+    }
+    return listSubwayDirections(lineEntities, selectedLine, directionOptions);
+  }, [lineEntities, selectedLine, directionOptions]);
+
+  useEffect(() => {
+    if (!selectedDirectionKey) {
+      return;
+    }
+    if (
+      !availableDirections.some(
+        (direction) => direction.key === selectedDirectionKey,
+      )
+    ) {
+      setSelectedDirectionKey(null);
+    }
+  }, [availableDirections, selectedDirectionKey]);
+
+  const selectedDirection = useMemo(() => {
+    if (!selectedDirectionKey) {
+      return null;
+    }
+    return (
+      availableDirections.find(
+        (direction) => direction.key === selectedDirectionKey,
+      ) ?? null
+    );
+  }, [availableDirections, selectedDirectionKey]);
+
+  const orderedEntities = useMemo(
+    () =>
+      lineEntities.filter((entity) =>
+        entityMatchesDirection(
+          entity,
+          selectedDirectionKey,
+          directionOptions,
+        ),
+      ),
+    [lineEntities, selectedDirectionKey, directionOptions],
   );
 
   const selectedStationFeature = useMemo(() => {
@@ -115,6 +176,14 @@ function SubteForecastPage() {
     return selectedStationId;
   }, [selectedStationFeature, selectedStationId]);
 
+  const selectedStationStaticId = useMemo(() => {
+    const id = selectedStationFeature?.properties?.id;
+    if (typeof id === "number" || typeof id === "string") {
+      return String(id);
+    }
+    return selectedStationId;
+  }, [selectedStationFeature, selectedStationId]);
+
   const selectedStationLineLabel = useMemo(() => {
     const ral = selectedStationFeature?.properties?.ral;
     const lineCode = parseSubwayLineCode(
@@ -134,21 +203,34 @@ function SubteForecastPage() {
   const arrivals = useMemo(() => {
     const referenceTime = data?.headerTimestamp;
     const items: SubteArrivalItem[] = [];
-    const stationFilter = normalizeName(selectedStationName);
 
     orderedEntities.forEach((entity, entityIndex) => {
       const linea = entity.Linea;
       const lineCode = parseSubwayLineCode(linea?.Route_Id);
       const tripEntityKey = entityKey(entity, entityIndex);
+      const direction = resolveSubwayDirection(entity, directionOptions);
       const stationsForTrip = linea?.Estaciones ?? [];
 
       stationsForTrip.forEach((station, stationIndex) => {
-        const name = station.stop_name?.trim();
-        if (!name) {
+        if (
+          !forecastStationMatchesSelection(
+            stationDirectory,
+            station,
+            lineCode,
+            selectedStationStaticId,
+            selectedStationName,
+          )
+        ) {
           return;
         }
 
-        if (stationFilter && normalizeName(name) !== stationFilter) {
+        const resolved = resolveForecastStation(
+          stationDirectory,
+          station,
+          lineCode,
+        );
+        const name = resolved.displayName;
+        if (!name) {
           return;
         }
 
@@ -171,7 +253,14 @@ function SubteForecastPage() {
           lineCode,
           stationName: name,
           stopId: station.stop_id,
-          directionId: linea?.Direction_ID,
+          directionId:
+            typeof direction?.directionId === "number"
+              ? direction.directionId
+              : linea?.Direction_ID,
+          directionKey: direction?.key,
+          directionLabel: direction?.label,
+          originName: direction?.originName,
+          destinationName: direction?.destinationName,
           arrivalTime,
           departureTime,
           arrivalDelay: station.arrival?.delay,
@@ -187,7 +276,14 @@ function SubteForecastPage() {
     });
 
     return items.slice(0, 40);
-  }, [orderedEntities, selectedStationName, data?.headerTimestamp]);
+  }, [
+    orderedEntities,
+    selectedStationName,
+    selectedStationStaticId,
+    data?.headerTimestamp,
+    stationDirectory,
+    directionOptions,
+  ]);
 
   const resolvedArrivalKey = useMemo(() => {
     if (
@@ -220,22 +316,51 @@ function SubteForecastPage() {
     return orderedEntities[0] ?? null;
   }, [arrivals, resolvedArrivalKey, orderedEntities, selectedEntityKey]);
 
-  const detailStations = selectedEntity?.Linea?.Estaciones ?? [];
+  const detailStations = useMemo((): SubteDisplayStation[] => {
+    const linea = selectedEntity?.Linea;
+    if (!linea) {
+      return [];
+    }
+    const lineCode = parseSubwayLineCode(linea.Route_Id);
+    return (linea.Estaciones ?? []).map((station, index) => {
+      const resolved = resolveForecastStation(
+        stationDirectory,
+        station,
+        lineCode,
+      );
+      return {
+        key: `${station.stop_id ?? "stop"}-${index}`,
+        displayName: resolved.displayName,
+        arrivalTime: station.arrival?.time,
+        departureTime: station.departure?.time,
+        arrivalDelay: station.arrival?.delay,
+        departureDelay: station.departure?.delay,
+      };
+    });
+  }, [selectedEntity, stationDirectory]);
+
   const selectedLineStyle = getSubwayLineStyle(selectedLine);
   const staticReady = Boolean(network || stations);
 
   const openPanel = (
     preferred: SubtePanelState = isMobile ? "summary" : "expanded",
   ) => {
-    setPanelState(isMobile ? preferred : preferred === "closed" ? "closed" : "expanded");
+    setPanelState(
+      isMobile ? preferred : preferred === "closed" ? "closed" : "expanded",
+    );
+  };
+
+  const resetTripSelection = () => {
+    setSelectedEntityKey(null);
+    setSelectedArrivalKey(null);
   };
 
   const handleChipSelect = (line: SubwayLineCode) => {
     setSelectedLine((current) => {
       const next = current === line ? null : line;
       setSelectedStationId(null);
-      setSelectedEntityKey(null);
-      setSelectedArrivalKey(null);
+      setSelectedDirectionKey(null);
+      resetTripSelection();
       return next;
     });
     openPanel(isMobile ? "summary" : "expanded");
@@ -244,8 +369,8 @@ function SubteForecastPage() {
   const handleSelectAllLines = () => {
     setSelectedLine(null);
     setSelectedStationId(null);
-    setSelectedEntityKey(null);
-    setSelectedArrivalKey(null);
+    setSelectedDirectionKey(null);
+    resetTripSelection();
   };
 
   const effectivePanelState: SubtePanelState =
@@ -257,47 +382,6 @@ function SubteForecastPage() {
         <div className="subte-toolbar-copy">
           <p className="subte-section-kicker">Subtes</p>
           <h2>Red de subterráneos</h2>
-        </div>
-        <div className="subte-toolbar-actions">
-          <button
-            type="button"
-            onClick={refreshNow}
-            disabled={loading || isRefreshing}
-            className="secondary"
-          >
-            Actualizar
-          </button>
-
-          <label
-            className="toggle-control"
-            aria-label="Actualización automática"
-          >
-            <span className="toggle-control-copy">
-              <span className="toggle-control-label">Auto</span>
-            </span>
-            <input
-              type="checkbox"
-              className="toggle-control-input"
-              checked={autoRefreshEnabled}
-              onChange={(event) => setAutoRefreshEnabled(event.target.checked)}
-            />
-            <span className="toggle-control-switch" aria-hidden="true">
-              <span className="toggle-control-thumb" />
-            </span>
-          </label>
-
-          <select
-            value={refreshIntervalMs}
-            disabled={!autoRefreshEnabled}
-            aria-label="Intervalo de actualización"
-            onChange={(event) =>
-              setRefreshIntervalMs(Number(event.target.value))
-            }
-          >
-            <option value={10000}>10s</option>
-            <option value={15000}>15s</option>
-            <option value={30000}>30s</option>
-          </select>
         </div>
       </div>
 
@@ -356,8 +440,8 @@ function SubteForecastPage() {
             onSelectLine={(line) => {
               setSelectedLine(line);
               setSelectedStationId(null);
-              setSelectedEntityKey(null);
-              setSelectedArrivalKey(null);
+              setSelectedDirectionKey(null);
+              resetTripSelection();
               if (line) {
                 openPanel(isMobile ? "summary" : "expanded");
               }
@@ -365,7 +449,10 @@ function SubteForecastPage() {
             onSelectStation={(stationId, line) => {
               setSelectedStationId(stationId);
               setSelectedArrivalKey(null);
-              if (line) {
+              if (line && line !== selectedLine) {
+                setSelectedLine(line);
+                setSelectedDirectionKey(null);
+              } else if (line) {
                 setSelectedLine(line);
               }
               openPanel(isMobile ? "summary" : "expanded");
@@ -400,13 +487,22 @@ function SubteForecastPage() {
           selectedLine={selectedLine}
           selectedStationName={selectedStationName}
           selectedStationLineLabel={selectedStationLineLabel}
+          directions={availableDirections}
+          selectedDirectionKey={selectedDirectionKey}
+          selectedDirection={selectedDirection}
+          onSelectDirection={(key) => {
+            setSelectedDirectionKey(key);
+            resetTripSelection();
+          }}
           arrivals={arrivals}
           selectedArrivalKey={resolvedArrivalKey}
           detailStations={detailStations}
           forecastLoading={loading}
+          isRefreshing={isRefreshing}
           forecastError={Boolean(error)}
           forecastEmpty={empty}
           lastUpdated={lastUpdated}
+          onRefresh={refreshNow}
           onSelectArrival={(key) => {
             setSelectedArrivalKey(key);
             const arrival = arrivals.find((item) => item.key === key);
