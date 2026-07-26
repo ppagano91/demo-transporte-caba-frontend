@@ -85,7 +85,7 @@ function App() {
     <main className="app-shell">
       <header className="app-topbar">
         <div className="app-topbar-copy">
-          <p className="app-shell-kicker">Demo API Transporte GCBA</p>
+          {/* <p className="app-shell-kicker">Demo API Transporte GCBA</p> */}
           <div className="app-topbar-heading">
             <h1>{PAGE_META[activePage].title}</h1>
             <p>{PAGE_META[activePage].description}</p>

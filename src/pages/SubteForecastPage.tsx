@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SubteInfoPanel, {
   type SubteArrivalItem,
   type SubtePanelState,
@@ -28,7 +28,10 @@ import {
   resolveSubwayDirection,
 } from "../utils/subwayDirection";
 
-const MOBILE_BREAKPOINT_PX = 900;
+/** Overlay (tablet/móvil) cuando width <= 1024; split (laptop) cuando width > 1024. */
+const DESKTOP_SPLIT_MIN_WIDTH_PX = 1025;
+/** Bottom sheet / fullscreen móvil dentro del modo overlay. */
+const MOBILE_SHEET_MAX_WIDTH_PX = 900;
 const FORECAST_REFRESH_INTERVAL_MS = 15000;
 
 const entityKey = (entity: SubteEntityForecast, index: number): string => {
@@ -81,29 +84,45 @@ const formatDelayLabel = (seconds?: number): string | undefined => {
   return `${sign}${absoluteSeconds} s`;
 };
 
-const useIsMobile = (breakpointPx: number): boolean => {
-  const [isMobile, setIsMobile] = useState(() => {
+const useMediaMatches = (query: string): boolean => {
+  const [matches, setMatches] = useState(() => {
     if (typeof window === "undefined") {
       return false;
     }
-    return window.matchMedia(`(max-width: ${breakpointPx}px)`).matches;
+    return window.matchMedia(query).matches;
   });
 
   useEffect(() => {
-    const media = window.matchMedia(`(max-width: ${breakpointPx}px)`);
-    const onChange = () => setIsMobile(media.matches);
+    const media = window.matchMedia(query);
+    const onChange = () => setMatches(media.matches);
     onChange();
     media.addEventListener("change", onChange);
     return () => media.removeEventListener("change", onChange);
-  }, [breakpointPx]);
+  }, [query]);
 
-  return isMobile;
+  return matches;
 };
 
 function SubteForecastPage() {
-  const isMobile = useIsMobile(MOBILE_BREAKPOINT_PX);
-  const [panelState, setPanelState] = useState<SubtePanelState>("closed");
+  const isDesktopSplit = useMediaMatches(
+    `(min-width: ${DESKTOP_SPLIT_MIN_WIDTH_PX}px)`,
+  );
+  const isMobile = useMediaMatches(
+    `(max-width: ${MOBILE_SHEET_MAX_WIDTH_PX}px)`,
+  );
+  const [panelState, setPanelState] = useState<SubtePanelState>(() => {
+    if (typeof window === "undefined") {
+      return "closed";
+    }
+    return window.matchMedia(
+      `(min-width: ${DESKTOP_SPLIT_MIN_WIDTH_PX}px)`,
+    ).matches
+      ? "expanded"
+      : "closed";
+  });
   const [panelTab, setPanelTab] = useState<SubtePanelTab>("arrivals");
+  const [layoutTick, setLayoutTick] = useState(0);
+  const wasDesktopSplitRef = useRef(isDesktopSplit);
   const [selectedEntityKey, setSelectedEntityKey] = useState<string | null>(
     null,
   );
@@ -412,7 +431,23 @@ function SubteForecastPage() {
   const selectedLineStyle = getSubwayLineStyle(selectedLine);
   const staticReady = Boolean(network || stations);
   const layoutRevision =
-    (panelState === "closed" ? 0 : 1) + (panelState === "expanded" ? 2 : 0);
+    (isDesktopSplit ? 10 : 0) +
+    (panelState === "closed" ? 0 : 1) +
+    (panelState === "expanded" ? 2 : 0) +
+    (panelState === "summary" ? 4 : 0) +
+    layoutTick * 8;
+
+  useEffect(() => {
+    const wasDesktopSplit = wasDesktopSplitRef.current;
+    wasDesktopSplitRef.current = isDesktopSplit;
+
+    if (wasDesktopSplit && !isDesktopSplit) {
+      // Al salir del split, evitar llevar fullscreen / panel expandido al overlay.
+      setPanelState((current) =>
+        current === "expanded" ? "summary" : current,
+      );
+    }
+  }, [isDesktopSplit]);
 
   const openPanel = (
     preferred: SubtePanelState = "summary",
@@ -421,6 +456,10 @@ function SubteForecastPage() {
     setPanelTab(tab);
     if (preferred === "closed") {
       setPanelState("closed");
+      return;
+    }
+    if (isDesktopSplit && preferred === "summary") {
+      setPanelState("expanded");
       return;
     }
     setPanelState(preferred);
@@ -509,6 +548,20 @@ function SubteForecastPage() {
   );
 
   const effectivePanelState: SubtePanelState = panelState;
+  const panelIsClosed = effectivePanelState === "closed";
+  const mapStageClassName = [
+    "subte-map-stage",
+    isDesktopSplit ? "is-split" : "is-overlay",
+    isDesktopSplit && panelIsClosed ? "is-panel-closed" : "",
+    isDesktopSplit && effectivePanelState === "expanded"
+      ? "is-panel-expanded"
+      : "",
+    isDesktopSplit && effectivePanelState === "summary"
+      ? "is-panel-summary"
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <section className="subte-page">
@@ -564,73 +617,97 @@ function SubteForecastPage() {
         </div>
       )}
 
-      <div className="subte-map-stage">
-        {(staticReady || staticLoading) && (
-          <SubteMapView
-            network={network}
-            stations={stations}
-            selectedLine={selectedLine}
-            selectedStationId={selectedStationId}
-            layoutRevision={layoutRevision}
-            getStationArrivalSummary={getStationArrivalSummary}
-            onSelectLine={(line) => {
-              setSelectedLine(line);
-              setSelectedStationId(null);
-              setSelectedDirectionKey(null);
-              resetTripSelection();
-            }}
-            onSelectStation={(stationId, line) => {
-              setSelectedStationId(stationId);
-              setSelectedArrivalKey(null);
-              if (line && line !== selectedLine) {
+      <div
+        className={mapStageClassName}
+        onTransitionEnd={(event) => {
+          if (event.target !== event.currentTarget) {
+            return;
+          }
+          setLayoutTick((tick) => tick + 1);
+        }}
+      >
+        <div className="subte-map-column">
+          {(staticReady || staticLoading) && (
+            <SubteMapView
+              network={network}
+              stations={stations}
+              selectedLine={selectedLine}
+              selectedStationId={selectedStationId}
+              layoutRevision={layoutRevision}
+              getStationArrivalSummary={getStationArrivalSummary}
+              onSelectLine={(line) => {
                 setSelectedLine(line);
+                setSelectedStationId(null);
                 setSelectedDirectionKey(null);
-              } else if (line) {
+                resetTripSelection();
+              }}
+              onSelectStation={(stationId, line) => {
+                setSelectedStationId(stationId);
+                setSelectedArrivalKey(null);
+                if (line && line !== selectedLine) {
+                  setSelectedLine(line);
+                  setSelectedDirectionKey(null);
+                } else if (line) {
+                  setSelectedLine(line);
+                }
+              }}
+              onOpenStationArrivals={(stationId, line) => {
+                setSelectedStationId(stationId);
+                setSelectedArrivalKey(null);
+                if (line) {
+                  setSelectedLine(line);
+                }
+                openPanel("summary", "arrivals");
+              }}
+              onOpenLinePanel={(line) => {
                 setSelectedLine(line);
-              }
-            }}
-            onOpenStationArrivals={(stationId, line) => {
-              setSelectedStationId(stationId);
-              setSelectedArrivalKey(null);
-              if (line) {
-                setSelectedLine(line);
-              }
-              openPanel("summary", "arrivals");
-            }}
-            onOpenLinePanel={(line) => {
-              setSelectedLine(line);
-              setSelectedStationId(null);
-              setSelectedDirectionKey(null);
-              resetTripSelection();
-              openPanel("summary", "arrivals");
-            }}
-          />
-        )}
+                setSelectedStationId(null);
+                setSelectedDirectionKey(null);
+                resetTripSelection();
+                openPanel("summary", "arrivals");
+              }}
+            />
+          )}
 
-        {effectivePanelState === "closed" ? (
-          <button
-            type="button"
-            className="subte-open-panel-btn"
-            onClick={() => openPanel("summary", "arrivals")}
-            aria-label="Abrir próximas llegadas"
-          >
-            <span className="subte-open-panel-btn-icon" aria-hidden="true">
-              ◷
-            </span>
-            Próximas llegadas
-            {selectedLineStyle ? (
-              <span
-                className="subte-open-panel-btn-line"
-                style={{ backgroundColor: selectedLineStyle.color }}
-                aria-hidden="true"
-              />
-            ) : null}
-          </button>
-        ) : null}
+          {!isDesktopSplit && panelIsClosed ? (
+            <button
+              type="button"
+              className="subte-open-panel-btn"
+              onClick={() => openPanel("summary", "arrivals")}
+              aria-label="Abrir próximas llegadas"
+            >
+              <span className="subte-open-panel-btn-icon" aria-hidden="true">
+                ◷
+              </span>
+              Próximas llegadas
+              {selectedLineStyle ? (
+                <span
+                  className="subte-open-panel-btn-line"
+                  style={{ backgroundColor: selectedLineStyle.color }}
+                  aria-hidden="true"
+                />
+              ) : null}
+            </button>
+          ) : null}
+
+          {isDesktopSplit && panelIsClosed ? (
+            <button
+              type="button"
+              className="subte-reopen-panel-btn"
+              onClick={() => openPanel("expanded", "arrivals")}
+              aria-label="Mostrar información"
+              title="Mostrar información"
+            >
+              <span aria-hidden="true">‹</span>
+              Info
+            </button>
+          ) : null}
+        </div>
 
         <SubteInfoPanel
           state={effectivePanelState}
           isMobile={isMobile}
+          isDesktopSplit={isDesktopSplit}
           selectedLine={selectedLine}
           selectedStationName={selectedStationName}
           selectedStationLineLabel={selectedStationLineLabel}
@@ -676,6 +753,9 @@ function SubteForecastPage() {
           onMinimize={() => setPanelState("summary")}
           onExpand={() => setPanelState("expanded")}
           onClearStation={() => setSelectedStationId(null)}
+          onLayoutTransitionEnd={() => {
+            setLayoutTick((tick) => tick + 1);
+          }}
         />
       </div>
     </section>

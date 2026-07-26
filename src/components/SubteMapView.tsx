@@ -940,21 +940,33 @@ function SubteMapView({
       return;
     }
 
+    let frame = 0;
     const resize = () => {
-      map.resize();
+      if (!mapRef.current) {
+        return;
+      }
+      mapRef.current.resize();
     };
 
-    resize();
+    const scheduleResize = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(resize);
+    };
+
+    scheduleResize();
 
     if (typeof ResizeObserver === "undefined") {
-      return;
+      return () => cancelAnimationFrame(frame);
     }
 
     const observer = new ResizeObserver(() => {
-      resize();
+      scheduleResize();
     });
     observer.observe(container);
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, [mapReady, layoutRevision]);
 
   return (

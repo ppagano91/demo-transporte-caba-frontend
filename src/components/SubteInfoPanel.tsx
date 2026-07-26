@@ -36,6 +36,7 @@ export interface SubteArrivalItem {
 interface SubteInfoPanelProps {
   state: SubtePanelState;
   isMobile: boolean;
+  isDesktopSplit?: boolean;
   selectedLine: SubwayLineCode | null;
   selectedStationName: string | null;
   selectedStationLineLabel: string | null;
@@ -61,6 +62,7 @@ interface SubteInfoPanelProps {
   onMinimize: () => void;
   onExpand: () => void;
   onClearStation: () => void;
+  onLayoutTransitionEnd?: () => void;
 }
 
 const formatTimeOnly = (unixSeconds?: number): string => {
@@ -273,6 +275,7 @@ function ArrivalCard({
 function SubteInfoPanel({
   state,
   isMobile,
+  isDesktopSplit = false,
   selectedLine,
   selectedStationName,
   selectedStationLineLabel,
@@ -298,6 +301,7 @@ function SubteInfoPanel({
   onMinimize,
   onExpand,
   onClearStation,
+  onLayoutTransitionEnd,
 }: SubteInfoPanelProps) {
   const lineStyle = getSubwayLineStyle(selectedLine);
   const nextArrival = arrivals[0] ?? null;
@@ -312,6 +316,7 @@ function SubteInfoPanel({
   const stationsTabId = `${tabsId}-stations`;
   const arrivalsPanelId = `${tabsId}-arrivals-panel`;
   const stationsPanelId = `${tabsId}-stations-panel`;
+  const showSheetChrome = isMobile && !isDesktopSplit;
 
   const headerIdentity = (() => {
     if (!selectedLine || !lineStyle) {
@@ -362,13 +367,13 @@ function SubteInfoPanel({
 
   const panelClassName = [
     "subte-info-panel",
-    isMobile ? "is-mobile" : "is-desktop",
+    isDesktopSplit ? "is-split" : isMobile ? "is-mobile" : "is-desktop",
     `state-${state}`,
     isOpen ? "is-open" : "is-closed",
   ].join(" ");
 
   useEffect(() => {
-    const shouldLock = isMobile && isOpen && isExpanded;
+    const shouldLock = showSheetChrome && isOpen && isExpanded;
     if (!shouldLock) {
       return;
     }
@@ -379,7 +384,7 @@ function SubteInfoPanel({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isMobile, isOpen, isExpanded]);
+  }, [showSheetChrome, isOpen, isExpanded]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -401,7 +406,7 @@ function SubteInfoPanel({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isOpen, isExpanded, onMinimize, onClose]);
 
-  const showExpandedContent = !isMobile || isExpanded;
+  const showExpandedContent = !showSheetChrome || isExpanded;
   const hideLineBadgeInArrivals = Boolean(selectedLine);
 
   return (
@@ -409,11 +414,17 @@ function SubteInfoPanel({
       className={panelClassName}
       aria-hidden={!isOpen}
       aria-label="Panel de subtes"
+      onTransitionEnd={(event) => {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
+        onLayoutTransitionEnd?.();
+      }}
       {...(!isOpen ? { inert: true } : {})}
     >
       <div className="subte-info-panel-inner">
         <header className="subte-info-panel-header">
-          {isMobile ? (
+          {showSheetChrome ? (
             <button
               type="button"
               className="subte-sheet-handle"
@@ -468,8 +479,10 @@ function SubteInfoPanel({
                   type="button"
                   className="subte-panel-icon-btn"
                   onClick={onExpand}
-                  aria-label="Expandir panel"
-                  title="Expandir"
+                  aria-label={
+                    isDesktopSplit ? "Ampliar panel" : "Expandir panel"
+                  }
+                  title={isDesktopSplit ? "Ampliar" : "Expandir"}
                 >
                   <ExpandIcon />
                 </button>
@@ -480,7 +493,9 @@ function SubteInfoPanel({
                   type="button"
                   className="subte-panel-icon-btn"
                   onClick={onMinimize}
-                  aria-label="Reducir panel"
+                  aria-label={
+                    isDesktopSplit ? "Reducir ancho del panel" : "Reducir panel"
+                  }
                   title="Reducir"
                 >
                   <CollapseIcon />
@@ -549,7 +564,7 @@ function SubteInfoPanel({
           ) : null}
         </div>
 
-        {isSummary && isMobile ? (
+        {isSummary && showSheetChrome ? (
           <div className="subte-info-panel-body is-summary">
             <div className="subte-panel-summary">
               {statusMessage ? (
