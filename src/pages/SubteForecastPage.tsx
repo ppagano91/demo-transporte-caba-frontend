@@ -617,6 +617,8 @@ function SubteForecastPage() {
               selectedLine={selectedLine}
               selectedStationId={selectedStationId}
               layoutRevision={layoutRevision}
+              panelState={effectivePanelState}
+              isDesktopSplit={isDesktopSplit}
               getStationArrivalSummary={getStationArrivalSummary}
               onSelectLine={(line) => {
                 setSelectedLine(line);
