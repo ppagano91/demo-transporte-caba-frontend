@@ -327,7 +327,7 @@ function SubteInfoPanel({
       return "Cargando próximas llegadas…";
     }
     if (forecastError) {
-      return "No se pudieron obtener las próximas llegadas. El mapa sigue disponible.";
+      return "No pudimos cargar las próximas llegadas.";
     }
     if (forecastEmpty) {
       return "No hay próximas llegadas disponibles.";

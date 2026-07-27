@@ -1,11 +1,12 @@
+import { buildApiUrl, toUserFacingFetchError } from "../config/api";
 import type { VehiclePosition, VehicleQueryParams } from "../types/vehicle";
 
 const API_BASE_URL =
   import.meta.env.VITE_BACKEND_API_BASE ??
-  "http://localhost:8000/api/vehicle-positions";
+  buildApiUrl("vehicle-positions");
 const API_SIMPLE_BASE_URL =
   import.meta.env.VITE_BACKEND_API_BASE_SIMPLE ??
-  "http://localhost:8000/api/vehicle-positions-simple";
+  buildApiUrl("vehicle-positions-simple");
 
 const toRecord = (value: unknown): Record<string, unknown> | undefined => {
   if (value && typeof value === "object") {
@@ -55,17 +56,36 @@ const hasValidCoordinates = (lat: number, lon: number): boolean => {
   return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
 };
 
+const appendQueryParams = (
+  baseUrl: string,
+  query: Record<string, string | undefined>,
+): string => {
+  if (/^https?:\/\//i.test(baseUrl)) {
+    const url = new URL(baseUrl);
+    for (const [key, value] of Object.entries(query)) {
+      const trimmed = value?.trim();
+      if (trimmed) {
+        url.searchParams.set(key, trimmed);
+      }
+    }
+    return url.toString();
+  }
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    const trimmed = value?.trim();
+    if (trimmed) {
+      params.set(key, trimmed);
+    }
+  }
+  const qs = params.toString();
+  return qs ? `${baseUrl}?${qs}` : baseUrl;
+};
+
 export const buildVehiclePositionsUrl = ({
   routeId,
 }: VehicleQueryParams = {}): string => {
-  const url = new URL(API_BASE_URL);
-
-  const trimmedRouteId = routeId?.trim();
-  if (trimmedRouteId) {
-    url.searchParams.set("route_id", trimmedRouteId);
-  }
-
-  return url.toString();
+  return appendQueryParams(API_BASE_URL, { route_id: routeId });
 };
 
 export const parseVehiclePositionsResponse = (
@@ -142,34 +162,31 @@ export const parseVehiclePositionsResponse = (
 export const fetchVehiclePositions = async (
   params: VehicleQueryParams = {},
 ): Promise<VehiclePosition[]> => {
-  const url = buildVehiclePositionsUrl(params);
-  const response = await fetch(url, { cache: "no-store" });
+  try {
+    const url = buildVehiclePositionsUrl(params);
+    const response = await fetch(url, { cache: "no-store" });
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const payload: unknown = await response.json();
+    return parseVehiclePositionsResponse(payload);
+  } catch (error) {
+    throw new Error(
+      toUserFacingFetchError(error, "No pudimos cargar las posiciones."),
+    );
   }
-
-  const payload: unknown = await response.json();
-  return parseVehiclePositionsResponse(payload);
 };
 
 export const buildVehiclePositionsSimpleUrl = ({
   routeId,
   agencyId,
 }: VehicleQueryParams = {}): string => {
-  const url = new URL(API_SIMPLE_BASE_URL);
-
-  const trimmedRouteId = routeId?.trim();
-  if (trimmedRouteId) {
-    url.searchParams.set("route_id", trimmedRouteId);
-  }
-
-  const trimmedAgencyId = agencyId?.trim();
-  if (trimmedAgencyId) {
-    url.searchParams.set("agency_id", trimmedAgencyId);
-  }
-
-  return url.toString();
+  return appendQueryParams(API_SIMPLE_BASE_URL, {
+    route_id: routeId,
+    agency_id: agencyId,
+  });
 };
 
 export const parseVehiclePositionsSimpleResponse = (
@@ -220,13 +237,19 @@ export const parseVehiclePositionsSimpleResponse = (
 export const fetchVehiclePositionsSimple = async (
   params: VehicleQueryParams = {},
 ): Promise<VehiclePosition[]> => {
-  const url = buildVehiclePositionsSimpleUrl(params);
-  const response = await fetch(url, { cache: "no-store" });
+  try {
+    const url = buildVehiclePositionsSimpleUrl(params);
+    const response = await fetch(url, { cache: "no-store" });
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const payload: unknown = await response.json();
+    return parseVehiclePositionsSimpleResponse(payload);
+  } catch (error) {
+    throw new Error(
+      toUserFacingFetchError(error, "No pudimos cargar las posiciones."),
+    );
   }
-
-  const payload: unknown = await response.json();
-  return parseVehiclePositionsSimpleResponse(payload);
 };

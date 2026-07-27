@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type SVGProps,
@@ -244,7 +243,8 @@ const LOCATION_MESSAGES: Record<
   unavailable: "No pudimos obtener tu ubicación.",
   timeout: "La ubicación tardó demasiado. Intentá nuevamente.",
   unsupported: "Tu navegador no permite obtener la ubicación.",
-  insecure: "La ubicación requiere HTTPS.",
+  insecure:
+    "La ubicación no está disponible en esta conexión. Usá HTTPS o abrí la app desde localhost.",
 };
 
 let mapLibreLoadPromise: Promise<void> | null = null;
@@ -915,13 +915,6 @@ function SubteMapView({
   onSelectStationRef.current = onSelectStation;
   onOpenStationArrivalsRef.current = onOpenStationArrivals;
   onOpenLinePanelRef.current = onOpenLinePanel;
-
-  const hasGeometry = useMemo(() => {
-    return (
-      (network?.features.length ?? 0) > 0 ||
-      (stations?.features.length ?? 0) > 0
-    );
-  }, [network, stations]);
 
   const showLocationToast = useCallback((message: string) => {
     setLocationMessage(message);
@@ -1817,11 +1810,8 @@ function SubteMapView({
         </div>
       ) : null}
       {mapError ? (
-        <div className="subte-map-overlay error">{mapError}</div>
-      ) : null}
-      {!mapError && !hasGeometry ? (
-        <div className="subte-map-overlay">
-          Todavía no hay red de subtes para mostrar.
+        <div className="subte-map-overlay error">
+          No pudimos inicializar el mapa.
         </div>
       ) : null}
     </div>

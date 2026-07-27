@@ -1,3 +1,4 @@
+import { buildApiUrl, toUserFacingFetchError } from "../config/api";
 import { parseSubwayLineCode } from "../constants/subwayLines";
 import type {
   SubteEntityForecast,
@@ -9,20 +10,19 @@ import type {
 } from "../types/subte";
 
 const SUBTE_API_BASE_URL =
-  import.meta.env.VITE_BACKEND_SUBTE_API_BASE ??
-  "http://localhost:8000/api/subtes";
+  import.meta.env.VITE_BACKEND_SUBTE_API_BASE ?? buildApiUrl("subtes");
 
 const SUBTE_FORECAST_API_BASE_URL =
   import.meta.env.VITE_BACKEND_SUBTE_FORECAST_API_BASE ??
-  `${SUBTE_API_BASE_URL}/forecast`;
+  `${SUBTE_API_BASE_URL.replace(/\/+$/, "")}/forecast`;
 
 const SUBTE_NETWORK_API_BASE_URL =
   import.meta.env.VITE_BACKEND_SUBTE_NETWORK_API_BASE ??
-  `${SUBTE_API_BASE_URL}/network`;
+  `${SUBTE_API_BASE_URL.replace(/\/+$/, "")}/network`;
 
 const SUBTE_STATIONS_API_BASE_URL =
   import.meta.env.VITE_BACKEND_SUBTE_STATIONS_API_BASE ??
-  `${SUBTE_API_BASE_URL}/stations`;
+  `${SUBTE_API_BASE_URL.replace(/\/+$/, "")}/stations`;
 
 const toRecord = (value: unknown): Record<string, unknown> | undefined => {
   if (value && typeof value === "object") {
@@ -133,16 +133,22 @@ export const parseSubteForecastResponse = (
 };
 
 export const fetchSubteForecast = async (): Promise<SubteForecastResponse> => {
-  const response = await fetch(SUBTE_FORECAST_API_BASE_URL, {
-    cache: "no-store",
-  });
+  try {
+    const response = await fetch(SUBTE_FORECAST_API_BASE_URL, {
+      cache: "no-store",
+    });
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const payload: unknown = await response.json();
+    return parseSubteForecastResponse(payload);
+  } catch (error) {
+    throw new Error(
+      toUserFacingFetchError(error, "No pudimos cargar las próximas llegadas."),
+    );
   }
-
-  const payload: unknown = await response.json();
-  return parseSubteForecastResponse(payload);
 };
 
 const toStringProp = (value: unknown): string | undefined => {
@@ -235,23 +241,36 @@ export const parseSubteGeoJsonFeatureCollection = (
 const fetchSubteGeoJson = async (
   url: string,
   kind: "network" | "stations",
+  friendlyError: string,
 ): Promise<SubteGeoJsonFeatureCollection> => {
-  const response = await fetch(url, { cache: "force-cache" });
+  try {
+    const response = await fetch(url, { cache: "force-cache" });
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const payload: unknown = await response.json();
+    return parseSubteGeoJsonFeatureCollection(payload, kind);
+  } catch (error) {
+    throw new Error(toUserFacingFetchError(error, friendlyError));
   }
-
-  const payload: unknown = await response.json();
-  return parseSubteGeoJsonFeatureCollection(payload, kind);
 };
 
 export const fetchSubteNetwork =
   async (): Promise<SubteGeoJsonFeatureCollection> => {
-    return fetchSubteGeoJson(SUBTE_NETWORK_API_BASE_URL, "network");
+    return fetchSubteGeoJson(
+      SUBTE_NETWORK_API_BASE_URL,
+      "network",
+      "No pudimos cargar los recorridos.",
+    );
   };
 
 export const fetchSubteStations =
   async (): Promise<SubteGeoJsonFeatureCollection> => {
-    return fetchSubteGeoJson(SUBTE_STATIONS_API_BASE_URL, "stations");
+    return fetchSubteGeoJson(
+      SUBTE_STATIONS_API_BASE_URL,
+      "stations",
+      "No pudimos cargar las estaciones.",
+    );
   };

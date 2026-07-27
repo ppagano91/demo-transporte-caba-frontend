@@ -1,3 +1,4 @@
+import { buildApiUrl, toUserFacingFetchError } from "../config/api";
 import type {
   StationInformationItem,
   StationInformationResponse,
@@ -7,11 +8,11 @@ import type {
 
 const STATION_INFORMATION_API_BASE_URL =
   import.meta.env.VITE_BACKEND_ECOBICI_STATION_INFORMATION_API_BASE ??
-  "http://localhost:8000/api/ecobici/station-information";
+  buildApiUrl("ecobici/station-information");
 
 const STATION_STATUS_API_BASE_URL =
   import.meta.env.VITE_BACKEND_ECOBICI_STATION_STATUS_API_BASE ??
-  "http://localhost:8000/api/ecobici/station-status";
+  buildApiUrl("ecobici/station-status");
 
 const toRecord = (value: unknown): Record<string, unknown> | undefined => {
   if (value && typeof value === "object") {
@@ -141,23 +142,41 @@ export const parseStationStatusResponse = (
 
 export const fetchStationInformation =
   async (): Promise<StationInformationResponse> => {
-    const response = await fetch(STATION_INFORMATION_API_BASE_URL, {
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+    try {
+      const response = await fetch(STATION_INFORMATION_API_BASE_URL, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload: unknown = await response.json();
+      return parseStationInformationResponse(payload);
+    } catch (error) {
+      throw new Error(
+        toUserFacingFetchError(
+          error,
+          "No pudimos cargar la información de estaciones.",
+        ),
+      );
     }
-    const payload: unknown = await response.json();
-    return parseStationInformationResponse(payload);
   };
 
 export const fetchStationStatus = async (): Promise<StationStatusResponse> => {
-  const response = await fetch(STATION_STATUS_API_BASE_URL, {
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+  try {
+    const response = await fetch(STATION_STATUS_API_BASE_URL, {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const payload: unknown = await response.json();
+    return parseStationStatusResponse(payload);
+  } catch (error) {
+    throw new Error(
+      toUserFacingFetchError(
+        error,
+        "No pudimos cargar el estado de las estaciones.",
+      ),
+    );
   }
-  const payload: unknown = await response.json();
-  return parseStationStatusResponse(payload);
 };

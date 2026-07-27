@@ -1,8 +1,9 @@
+import { buildApiUrl, toUserFacingFetchError } from "../config/api";
 import type { SemaforoItem, SemaforosResponse } from "../types/semaforos";
 
 const SEMAFOROS_API_BASE_URL =
   import.meta.env.VITE_BACKEND_SEMAFOROS_API_BASE ??
-  "http://localhost:8000/api/transito/semaforos";
+  buildApiUrl("transito/semaforos");
 
 const toRecord = (value: unknown): Record<string, unknown> | undefined => {
   if (value && typeof value === "object") {
@@ -62,12 +63,18 @@ export const parseSemaforosResponse = (payload: unknown): SemaforosResponse => {
 };
 
 export const fetchSemaforos = async (): Promise<SemaforosResponse> => {
-  const response = await fetch(SEMAFOROS_API_BASE_URL, {
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+  try {
+    const response = await fetch(SEMAFOROS_API_BASE_URL, {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const payload: unknown = await response.json();
+    return parseSemaforosResponse(payload);
+  } catch (error) {
+    throw new Error(
+      toUserFacingFetchError(error, "No pudimos cargar los semáforos."),
+    );
   }
-  const payload: unknown = await response.json();
-  return parseSemaforosResponse(payload);
 };

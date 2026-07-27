@@ -53,7 +53,7 @@ export const useSubteForecast = ({
       const message =
         unknownError instanceof Error
           ? unknownError.message
-          : "No se pudo consultar el endpoint de subtes";
+          : "No pudimos cargar las próximas llegadas.";
       setError(message);
     } finally {
       setLoading(false);

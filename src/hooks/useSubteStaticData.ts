@@ -43,7 +43,7 @@ export const useSubteStaticData = (): UseSubteStaticDataResult => {
         setNetworkError(
           networkResult.reason instanceof Error
             ? networkResult.reason.message
-            : "No se pudo cargar la red de subtes",
+            : "No pudimos cargar los recorridos.",
         );
       }
 
@@ -55,7 +55,7 @@ export const useSubteStaticData = (): UseSubteStaticDataResult => {
         setStationsError(
           stationsResult.reason instanceof Error
             ? stationsResult.reason.message
-            : "No se pudieron cargar las estaciones de subte",
+            : "No pudimos cargar las estaciones.",
         );
       }
 

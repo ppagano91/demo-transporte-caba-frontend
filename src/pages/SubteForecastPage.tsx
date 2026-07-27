@@ -418,7 +418,7 @@ function SubteForecastPage() {
   }, [routeStations, selectedStationName, selectedStationStaticId]);
 
   const selectedLineStyle = getSubwayLineStyle(selectedLine);
-  const staticReady = Boolean(network || stations);
+  // El mapa base se monta siempre; network/stations/forecast son independientes.
   const effectivePanelState: SubtePanelState = isDesktopSplit
     ? "expanded"
     : panelState;
@@ -593,13 +593,18 @@ function SubteForecastPage() {
         })}
       </div>
 
-      {(staticLoading || networkError || stationsError) && (
+      {(staticLoading || networkError || stationsError || error) && (
         <div className="subte-inline-status" role="status">
-          {staticLoading ? <span>Cargando mapa…</span> : null}
-          {networkError || stationsError ? (
+          {staticLoading ? <span>Cargando recorridos y estaciones…</span> : null}
+          {networkError ? (
+            <span className="is-error">No pudimos cargar los recorridos.</span>
+          ) : null}
+          {stationsError ? (
+            <span className="is-error">No pudimos cargar las estaciones.</span>
+          ) : null}
+          {!loading && error ? (
             <span className="is-error">
-              No se pudo cargar parte del mapa. Podés seguir consultando lo
-              disponible.
+              No pudimos cargar las próximas llegadas.
             </span>
           ) : null}
         </div>
@@ -615,49 +620,47 @@ function SubteForecastPage() {
         }}
       >
         <div className="subte-map-column">
-          {(staticReady || staticLoading) && (
-            <SubteMapView
-              network={network}
-              stations={stations}
-              selectedLine={selectedLine}
-              selectedStationId={selectedStationId}
-              layoutRevision={layoutRevision}
-              panelState={effectivePanelState}
-              isDesktopSplit={isDesktopSplit}
-              getStationArrivalSummary={getStationArrivalSummary}
-              onSelectLine={(line) => {
+          <SubteMapView
+            network={network}
+            stations={stations}
+            selectedLine={selectedLine}
+            selectedStationId={selectedStationId}
+            layoutRevision={layoutRevision}
+            panelState={effectivePanelState}
+            isDesktopSplit={isDesktopSplit}
+            getStationArrivalSummary={getStationArrivalSummary}
+            onSelectLine={(line) => {
+              setSelectedLine(line);
+              setSelectedStationId(null);
+              setSelectedDirectionKey(null);
+              resetTripSelection();
+            }}
+            onSelectStation={(stationId, line) => {
+              setSelectedStationId(stationId);
+              setSelectedArrivalKey(null);
+              if (line && line !== selectedLine) {
                 setSelectedLine(line);
-                setSelectedStationId(null);
                 setSelectedDirectionKey(null);
-                resetTripSelection();
-              }}
-              onSelectStation={(stationId, line) => {
-                setSelectedStationId(stationId);
-                setSelectedArrivalKey(null);
-                if (line && line !== selectedLine) {
-                  setSelectedLine(line);
-                  setSelectedDirectionKey(null);
-                } else if (line) {
-                  setSelectedLine(line);
-                }
-              }}
-              onOpenStationArrivals={(stationId, line) => {
-                setSelectedStationId(stationId);
-                setSelectedArrivalKey(null);
-                if (line) {
-                  setSelectedLine(line);
-                }
-                openPanel("summary", "arrivals");
-              }}
-              onOpenLinePanel={(line) => {
+              } else if (line) {
                 setSelectedLine(line);
-                setSelectedStationId(null);
-                setSelectedDirectionKey(null);
-                resetTripSelection();
-                openPanel("summary", "arrivals");
-              }}
-            />
-          )}
+              }
+            }}
+            onOpenStationArrivals={(stationId, line) => {
+              setSelectedStationId(stationId);
+              setSelectedArrivalKey(null);
+              if (line) {
+                setSelectedLine(line);
+              }
+              openPanel("summary", "arrivals");
+            }}
+            onOpenLinePanel={(line) => {
+              setSelectedLine(line);
+              setSelectedStationId(null);
+              setSelectedDirectionKey(null);
+              resetTripSelection();
+              openPanel("summary", "arrivals");
+            }}
+          />
 
           {!isDesktopSplit && panelIsClosed ? (
             <button
