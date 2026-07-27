@@ -1081,6 +1081,40 @@ html[data-theme="dark"] .subte-locate-btn.is-active {
   padding: 0 !important;
   cursor: pointer;
   color: inherit;
+  overflow: visible;
+}
+
+.subte-user-marker-label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--app-user-marker-label-bg);
+  color: var(--app-user-marker-label-text);
+  border: 1px solid color-mix(in srgb, var(--app-user-marker-label-text) 18%, transparent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
+  pointer-events: auto;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.subte-user-marker.is-label-visible .subte-user-marker-label {
+  opacity: 1;
+  visibility: visible;
+}
+
+.subte-user-marker:focus-visible {
+  outline: 3px solid var(--app-focus-ring);
+  outline-offset: 2px;
+  border-radius: 999px;
 }
 
 .subte-user-marker-halo {
@@ -1108,6 +1142,10 @@ html[data-theme="dark"] .subte-user-marker-dot {
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.55);
 }
 
+html[data-theme="dark"] .subte-user-marker-label {
+  border-color: rgba(248, 250, 252, 0.35);
+}
+
 .subte-user-marker.is-locating-pulse .subte-user-marker-halo {
   animation: subte-user-pulse 1.4s ease-out 1;
 }
@@ -1121,17 +1159,6 @@ html[data-theme="dark"] .subte-user-marker-dot {
     transform: scale(1.8);
     opacity: 0;
   }
-}
-
-.subte-map-popup-action.secondary {
-  background: var(--app-button-secondary-bg);
-  color: var(--app-button-secondary-text);
-  border-color: var(--app-button-secondary-border);
-}
-
-.subte-map-popup-action.secondary:hover {
-  background: var(--app-button-secondary-hover);
-  border-color: var(--app-border-strong);
 }
 
 .subte-open-panel-btn {

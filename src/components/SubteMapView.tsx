@@ -645,60 +645,60 @@ const buildLinePopupContent = ({
   return root;
 };
 
-const buildUserLocationPopupContent = ({
-  accuracy,
-  onClear,
-}: {
-  accuracy: number | null;
-  onClear?: () => void;
-}): HTMLElement => {
-  const root = document.createElement("div");
-  root.className = "subte-map-popup subte-map-popup-user";
+let syncUserLabelVisible: ((visible: boolean) => void) | null = null;
 
-  appendText(root, "strong", "VOS", "subte-map-popup-title");
-  appendText(
-    root,
-    "p",
-    "Tu ubicación aproximada",
-    "subte-map-popup-direction",
-  );
-
-  if (
-    accuracy !== null &&
-    Number.isFinite(accuracy) &&
-    accuracy > 0 &&
-    accuracy < 5000
-  ) {
-    appendText(
-      root,
-      "p",
-      `Precisión aproximada: ${Math.round(accuracy)} m`,
-      "subte-map-popup-empty",
-    );
-  }
-
-  if (onClear) {
-    const action = document.createElement("button");
-    action.type = "button";
-    action.className = "subte-map-popup-action secondary";
-    action.textContent = "Quitar ubicación";
-    action.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onClear();
-    });
-    root.appendChild(action);
-  }
-
-  return root;
+const setUserMarkerLabelVisible = (
+  element: HTMLElement,
+  visible: boolean,
+): void => {
+  element.classList.toggle("is-label-visible", visible);
+  element.setAttribute("aria-expanded", visible ? "true" : "false");
+  element.dataset.labelVisible = visible ? "1" : "0";
+  syncUserLabelVisible?.(visible);
 };
 
-const createUserMarkerElement = (animate = false): HTMLElement => {
+const bindUserMarkerInteractions = (element: HTMLElement): void => {
+  if (element.dataset.toggleBound === "1") {
+    return;
+  }
+  element.dataset.toggleBound = "1";
+
+  const stopMapEvent = (event: Event) => {
+    event.stopPropagation();
+  };
+
+  element.addEventListener("mousedown", stopMapEvent);
+  element.addEventListener("mouseup", stopMapEvent);
+  element.addEventListener("dblclick", stopMapEvent);
+  element.addEventListener("touchstart", stopMapEvent, { passive: true });
+  element.addEventListener("touchend", stopMapEvent);
+
+  element.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const nextVisible = !element.classList.contains("is-label-visible");
+    setUserMarkerLabelVisible(element, nextVisible);
+  });
+};
+
+const createUserMarkerElement = ({
+  animate = false,
+  labelVisible = true,
+}: {
+  animate?: boolean;
+  labelVisible?: boolean;
+} = {}): HTMLElement => {
   const root = document.createElement("button");
   root.type = "button";
   root.className = `subte-user-marker${animate ? " is-locating-pulse" : ""}`;
-  root.setAttribute("aria-label", "Tu ubicación aproximada");
-  root.title = "Tu ubicación aproximada";
+  root.setAttribute("aria-label", "Tu ubicación");
+  root.title = "Tu ubicación";
+  root.dataset.labelVisible = labelVisible ? "1" : "0";
+
+  const label = document.createElement("span");
+  label.className = "subte-user-marker-label";
+  label.textContent = "VOS";
+  label.setAttribute("aria-hidden", "true");
 
   const halo = document.createElement("span");
   halo.className = "subte-user-marker-halo";
@@ -708,8 +708,12 @@ const createUserMarkerElement = (animate = false): HTMLElement => {
   dot.className = "subte-user-marker-dot";
   dot.setAttribute("aria-hidden", "true");
 
+  root.appendChild(label);
   root.appendChild(halo);
   root.appendChild(dot);
+
+  setUserMarkerLabelVisible(root, labelVisible);
+  bindUserMarkerInteractions(root);
 
   if (animate) {
     window.setTimeout(() => {
@@ -864,7 +868,7 @@ function SubteMapView({
   const mapRef = useRef<MapLibreMap | null>(null);
   const popupRef = useRef<MapLibrePopup | null>(null);
   const userMarkerRef = useRef<MapLibreMarker | null>(null);
-  const userPopupRef = useRef<MapLibrePopup | null>(null);
+  const userLabelVisibleRef = useRef(true);
   const listenersAttachedRef = useRef(false);
   const layerHandlersRef = useRef<LayerHandlers | null>(null);
   const themeRef = useRef<ColorTheme>(theme);
@@ -902,6 +906,9 @@ function SubteMapView({
   selectedStationIdRef.current = selectedStationId;
   userLocationRef.current = userLocation;
   locationActiveRef.current = locationActive;
+  syncUserLabelVisible = (visible) => {
+    userLabelVisibleRef.current = visible;
+  };
   stationsRef.current = stations;
   getArrivalSummaryRef.current = getStationArrivalSummary;
   onSelectLineRef.current = onSelectLine;
@@ -1357,6 +1364,7 @@ function SubteMapView({
     setLocationState("idle");
     setUserLocation(null);
     userLocationRef.current = null;
+    userLabelVisibleRef.current = true;
 
     try {
       userMarkerRef.current?.remove();
@@ -1364,13 +1372,6 @@ function SubteMapView({
       // Marker ya removido.
     }
     userMarkerRef.current = null;
-
-    try {
-      userPopupRef.current?.remove();
-    } catch {
-      // Popup ya removido.
-    }
-    userPopupRef.current = null;
 
     const map = mapRef.current;
     if (map) {
@@ -1384,25 +1385,24 @@ function SubteMapView({
   clearUserLocationRef.current = clearUserLocation;
 
   const upsertUserMarker = useCallback(
-    (location: UserLocationState, animate = false) => {
+    (location: UserLocationState, options: { showLabel?: boolean; animate?: boolean } = {}) => {
+      const { showLabel, animate = false } = options;
       const map = mapRef.current;
       const maplibre = getMapLibre();
       if (!map || !maplibre || !locationActiveRef.current) {
         return;
       }
 
-      const popupContent = buildUserLocationPopupContent({
-        accuracy: location.accuracy,
-        onClear: () => clearUserLocationRef.current(),
-      });
+      const labelVisible =
+        showLabel === undefined ? userLabelVisibleRef.current : showLabel;
+      userLabelVisibleRef.current = labelVisible;
 
       if (userMarkerRef.current) {
         userMarkerRef.current.setLngLat([location.lng, location.lat]);
-        const existingPopup = userMarkerRef.current.getPopup();
-        if (existingPopup) {
-          existingPopup.setDOMContent(popupContent);
-        }
         const element = userMarkerRef.current.getElement();
+        setUserMarkerLabelVisible(element, labelVisible);
+        element.dataset.labelVisible = labelVisible ? "1" : "0";
+        bindUserMarkerInteractions(element);
         if (animate) {
           element.classList.add("is-locating-pulse");
           window.setTimeout(() => {
@@ -1412,16 +1412,10 @@ function SubteMapView({
         return;
       }
 
-      const element = createUserMarkerElement(animate);
-      const popup = new maplibre.Popup({
-        closeButton: true,
-        closeOnClick: true,
-        className: "subte-maplibre-popup",
-        maxWidth: "260px",
-        offset: 18,
-      }).setDOMContent(popupContent);
-
-      userPopupRef.current = popup;
+      const element = createUserMarkerElement({
+        animate,
+        labelVisible,
+      });
 
       const marker = new maplibre.Marker({
         element,
@@ -1429,7 +1423,6 @@ function SubteMapView({
         offset: [0, 0],
       })
         .setLngLat([location.lng, location.lat])
-        .setPopup(popup)
         .addTo(map);
 
       userMarkerRef.current = marker;
@@ -1455,7 +1448,9 @@ function SubteMapView({
           listenersAttachedRef.current = false;
           ensureSubwaySourcesAndLayers(map);
           if (locationActiveRef.current && userLocationRef.current) {
-            upsertUserMarker(userLocationRef.current, false);
+            upsertUserMarker(userLocationRef.current, {
+              showLabel: userLabelVisibleRef.current,
+            });
           }
         } catch {
           if (requestId === styleRequestIdRef.current) {
@@ -1697,7 +1692,9 @@ function SubteMapView({
     }
     syncAccuracySource(map);
     if (locationActive && userLocation) {
-      upsertUserMarker(userLocation, false);
+      upsertUserMarker(userLocation, {
+        showLabel: userLabelVisibleRef.current,
+      });
     }
   }, [
     userLocation,
@@ -1760,7 +1757,7 @@ function SubteMapView({
             zoom: 16,
             duration: 700,
           });
-          upsertUserMarker(next, true);
+          upsertUserMarker(next, { showLabel: true, animate: true });
           syncAccuracySource(map);
         }
       },

@@ -51,9 +51,9 @@ html[data-theme="light"] {
   --app-success-text: #0f766e;
   --app-kicker: #0f766e;
   --app-topbar-gradient: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  --app-user-marker-bg: #0284c7;
+  --app-user-marker-bg: #0b3a66;
   --app-user-marker-ring: #ffffff;
-  --app-user-marker-label-bg: #0f172a;
+  --app-user-marker-label-bg: #0b3a66;
   --app-user-marker-label-text: #ffffff;
   --app-toast-bg: rgba(15, 23, 42, 0.92);
   --app-toast-text: #f8fafc;
@@ -127,8 +127,8 @@ html[data-theme="dark"] {
   --app-topbar-gradient: linear-gradient(180deg, #111827 0%, #0f172a 100%);
   --app-user-marker-bg: #38bdf8;
   --app-user-marker-ring: #0f172a;
-  --app-user-marker-label-bg: #f8fafc;
-  --app-user-marker-label-text: #0f172a;
+  --app-user-marker-label-bg: #0b3a66;
+  --app-user-marker-label-text: #ffffff;
   --app-toast-bg: rgba(248, 250, 252, 0.94);
   --app-toast-text: #0f172a;
   --app-chip-active-mix: #0f172a;

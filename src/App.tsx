@@ -37,7 +37,8 @@ const detectPageFromPath = (path: string): AppPage => {
   if (path.startsWith("/semaforos")) {
     return "semaforos";
   }
-  return "colectivos";
+  return "subtes";
+  // return "colectivos";
 };
 
 function App() {
@@ -73,13 +74,14 @@ function App() {
     if (activePage === "subtes") {
       return <SubteForecastPage />;
     }
-    if (activePage === "ecobici") {
-      return <EcobiciPage />;
-    }
-    if (activePage === "semaforos") {
-      return <SemaforosPage />;
-    }
-    return <ColectivosPage />;
+    // if (activePage === "ecobici") {
+    //   return <EcobiciPage />;
+    // }
+    // if (activePage === "semaforos") {
+    //   return <SemaforosPage />;
+    // }
+    return <SubteForecastPage />
+    // return <ColectivosPage />;
   }, [activePage]);
 
   return (
@@ -96,14 +98,14 @@ function App() {
         </div>
 
         <nav className="top-nav" aria-label="Secciones principales">
-          <button
+          {/* <button
             className={
               activePage === "colectivos" ? "nav-button active" : "nav-button"
             }
             onClick={() => openPage("colectivos")}
           >
             Colectivos
-          </button>
+          </button> */}
           <button
             className={
               activePage === "subtes" ? "nav-button active" : "nav-button"
@@ -112,22 +114,22 @@ function App() {
           >
             Subtes
           </button>
-          <button
+          {/* <button
             className={
               activePage === "ecobici" ? "nav-button active" : "nav-button"
             }
             onClick={() => openPage("ecobici")}
           >
             Ecobici
-          </button>
-          <button
+          </button> */}
+          {/* <button
             className={
               activePage === "semaforos" ? "nav-button active" : "nav-button"
             }
             onClick={() => openPage("semaforos")}
           >
             Semaforos
-          </button>
+          </button> */}
         </nav>
       </header>
 
