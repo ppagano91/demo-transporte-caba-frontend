@@ -562,8 +562,11 @@ function SubteForecastPage() {
       >
         <button
           type="button"
-          className={`subte-line-chip ${selectedLine === null ? "active" : ""}`}
+          className={`subte-line-chip is-all ${selectedLine === null ? "active" : ""}`}
           onClick={handleSelectAllLines}
+          aria-pressed={selectedLine === null}
+          aria-label="Seleccionar todas las líneas"
+          title="Todas"
         >
           Todas
         </button>
@@ -573,16 +576,18 @@ function SubteForecastPage() {
             <button
               key={line.code}
               type="button"
-              className={`subte-line-chip ${isActive ? "active" : ""}`}
+              className={`subte-line-chip is-line ${isActive ? "active" : ""}`}
               style={{
                 ["--subte-line-color" as string]: line.color,
                 ["--subte-line-text" as string]: line.textColor,
               }}
               onClick={() => handleChipSelect(line.code)}
               aria-pressed={isActive}
+              aria-label={`Seleccionar Línea ${line.code}`}
+              title={`Línea ${line.code}`}
             >
               <span className="subte-line-chip-swatch" aria-hidden="true" />
-              {line.code}
+              <span className="subte-line-chip-code">{line.code}</span>
             </button>
           );
         })}

@@ -1798,20 +1798,22 @@ function SubteMapView({
   return (
     <div className={shellClassName}>
       <div ref={containerRef} className="subte-map-view" />
-      <button
-        type="button"
-        className={`subte-locate-btn ${locationState === "locating" ? "is-busy" : ""} ${locationActive ? "is-active" : ""}`}
-        onClick={handleLocateClick}
-        disabled={locationState === "locating"}
-        aria-label={locateLabel}
-        title={locateLabel}
-        aria-pressed={locationActive}
-        aria-busy={locationState === "locating"}
-      >
-        <LocateIcon
-          className={locationState === "locating" ? "is-spinning" : undefined}
-        />
-      </button>
+      <div className="subte-map-controls" aria-label="Controles del mapa">
+        <button
+          type="button"
+          className={`subte-locate-btn ${locationState === "locating" ? "is-busy" : ""} ${locationActive ? "is-active" : ""}`}
+          onClick={handleLocateClick}
+          disabled={locationState === "locating"}
+          aria-label={locateLabel}
+          title={locateLabel}
+          aria-pressed={locationActive}
+          aria-busy={locationState === "locating"}
+        >
+          <LocateIcon
+            className={locationState === "locating" ? "is-spinning" : undefined}
+          />
+        </button>
+      </div>
       {locationMessage ? (
         <div className="subte-map-toast" role="status">
           {locationMessage}

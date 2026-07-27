@@ -85,50 +85,50 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-topbar">
-        <div className="app-topbar-copy">
-          <div className="app-topbar-heading">
+        <div className="app-topbar-heading">
+          <div className="app-topbar-title-row">
             <h1>{PAGE_META[activePage].title}</h1>
-            <p>{PAGE_META[activePage].description}</p>
+            <ThemeToggleButton />
           </div>
+          <p className="app-topbar-description">
+            {PAGE_META[activePage].description}
+          </p>
         </div>
 
-        <div className="app-topbar-actions">
-          <ThemeToggleButton />
-          <nav className="top-nav" aria-label="Secciones principales">
-            <button
-              className={
-                activePage === "colectivos" ? "nav-button active" : "nav-button"
-              }
-              onClick={() => openPage("colectivos")}
-            >
-              Colectivos
-            </button>
-            <button
-              className={
-                activePage === "subtes" ? "nav-button active" : "nav-button"
-              }
-              onClick={() => openPage("subtes")}
-            >
-              Subtes
-            </button>
-            <button
-              className={
-                activePage === "ecobici" ? "nav-button active" : "nav-button"
-              }
-              onClick={() => openPage("ecobici")}
-            >
-              Ecobici
-            </button>
-            <button
-              className={
-                activePage === "semaforos" ? "nav-button active" : "nav-button"
-              }
-              onClick={() => openPage("semaforos")}
-            >
-              Semaforos
-            </button>
-          </nav>
-        </div>
+        <nav className="top-nav" aria-label="Secciones principales">
+          <button
+            className={
+              activePage === "colectivos" ? "nav-button active" : "nav-button"
+            }
+            onClick={() => openPage("colectivos")}
+          >
+            Colectivos
+          </button>
+          <button
+            className={
+              activePage === "subtes" ? "nav-button active" : "nav-button"
+            }
+            onClick={() => openPage("subtes")}
+          >
+            Subtes
+          </button>
+          <button
+            className={
+              activePage === "ecobici" ? "nav-button active" : "nav-button"
+            }
+            onClick={() => openPage("ecobici")}
+          >
+            Ecobici
+          </button>
+          <button
+            className={
+              activePage === "semaforos" ? "nav-button active" : "nav-button"
+            }
+            onClick={() => openPage("semaforos")}
+          >
+            Semaforos
+          </button>
+        </nav>
       </header>
 
       <section className="app-content">{pageContent}</section>
