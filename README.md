@@ -1,73 +1,97 @@
-# React + TypeScript + Vite
+# Frontend — Transporte público (Subtes)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript + Vite. Consume el backend FastAPI.
 
-Currently, two official plugins are available:
+## Desarrollo local
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Variables (`.env` / `.env.local`):
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```env
+VITE_API_BASE_URL=/api
+BACKEND_PROXY_TARGET=http://127.0.0.1:8000
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+`BACKEND_PROXY_TARGET` es **obligatoria** para `npm run dev` / `preview`. Sin valor válido (http/https absoluto), Vite no arranca. No hay fallback.
 
-```js
-// eslint.config.js
-import reactX from "eslint-plugin-react-x";
-import reactDom from "eslint-plugin-react-dom";
+Flujo:
 
-export default defineConfig([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs["recommended-typescript"],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```text
+Navegador → http://localhost:5173/api/...
+         → proxy de Vite
+         → http://127.0.0.1:8000/api/...
 ```
+
+Comandos (con el backend en el puerto 8000):
+
+```bash
+npm install
+npm run dev
+```
+
+El servidor escucha en `0.0.0.0:5173`, así que desde un celular en la misma red:
+
+```text
+http://<IP-LAN-DE-LA-PC>:5173
+```
+
+Las peticiones del celular van a `:5173/api/...` (no a `localhost:8000` del teléfono).
+
+## Build
+
+```bash
+npm run build
+```
+
+Salida: `dist/`.
+
+Vista previa local:
+
+```bash
+npm run preview -- --host 0.0.0.0
+```
+
+## Producción (Vercel)
+
+No usar el proxy de Vite en producción: no existe en el hosting estático.
+
+Configurar en **Vercel → Project Settings → Environment Variables** (Production):
+
+```env
+VITE_API_BASE_URL=https://transporte-publico-backend.onrender.com/api
+```
+
+Ajustes del proyecto:
+
+| Campo | Valor |
+|---|---|
+| Framework Preset | Vite |
+| Root Directory | `frontend` (monorepo con backend) |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Install Command | `npm install` |
+
+`vercel.json` solo define el fallback SPA (`/(.*) → /index.html`) para rutas como `/subtes`. No reescribe `/api`.
+
+Las variables `VITE_*` son públicas (quedan en el bundle del navegador). No poner secretos ahí.
+
+## CORS (Render)
+
+El frontend en Vercel llama directamente a Render. En **Render → Environment**:
+
+```env
+CORS_ALLOWED_ORIGINS=https://nombre-proyecto.vercel.app
+```
+
+Incluir también orígenes de desarrollo si hace falta:
+
+```env
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,https://nombre-proyecto.vercel.app
+```
+
+Tras el primer deploy, reemplazar `nombre-proyecto` por el dominio real de Vercel. Cada preview adicional debe agregarse de forma explícita (no se permiten todos los `*.vercel.app`).
+
+## Seguridad
+
+- `VITE_API_BASE_URL` es una URL pública; puede verse en el cliente.
+- `BACKEND_PROXY_TARGET` solo se usa en el servidor de desarrollo de Vite; no va al bundle.
+- Claves de mapas (`VITE_STADIA_MAPS_API_KEY`, etc.) deben ser claves de navegador restringidas por dominio en el proveedor.

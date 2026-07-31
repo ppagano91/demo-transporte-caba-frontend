@@ -1,7 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import ColectivosPage from "./pages/ColectivosPage";
-import EcobiciPage from "./pages/EcobiciPage";
-import SemaforosPage from "./pages/SemaforosPage";
 import SubteForecastPage from "./pages/SubteForecastPage";
 import ThemeToggleButton from "./components/ThemeToggleButton";
 import "./App.css";
